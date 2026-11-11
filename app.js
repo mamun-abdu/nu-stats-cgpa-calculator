@@ -1,526 +1,475 @@
-/* NU Statistics CGPA Calculator — UI layer (no framework). */
+/* NU Statistics CGPA — UI (plain JS, no framework) */
 (function () {
   'use strict';
-  var D = window.NU_DATA, C = window.NUCalc;
-  var KEY = 'nuStatsCgpa.v1';
-  var HONOURS = ['y1', 'y2', 'y3', 'y4'];
-  var YEARS = {};
-  D.years.forEach(function (y) { YEARS[y.id] = y; });
+  var D = window.NU_DATA, C = window.NUCalc, STR = window.NU_STR;
+  var KEY = 'nuStatsCgpa.v2';
+  var HON = ['y1', 'y2', 'y3', 'y4'];
+  var ALL = ['y1', 'y2', 'y3', 'y4', 'ms'];
+  var GCOL = { 'A+': '#3f8f5f', 'A': '#5d9b5f', 'A-': '#86a957', 'B+': '#b9ad4a', 'B': '#dba63c', 'B-': '#e5933a', 'C+': '#e07d3b', 'C': '#d8683b', 'D': '#c9583f', 'F': '#c4413a' };
+  var DARKTXT = { 'B+': 1, 'B': 1, 'B-': 1 };
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // ---------- State ----------
+  // ---------- state ----------
   var state = load();
-  function blank() {
-    var s = { tab: 'y1', bnDigits: true, years: {}, cgpa: {} };
-    D.years.forEach(function (y) { s.years[y.id] = { c: {}, sel: defaultSel(y) }; });
-    HONOURS.forEach(function (id) { s.cgpa[id] = { mode: 'auto', gpa: '', credits: '' }; });
+  function load() {
+    var s = { lang: (navigator.language || '').indexOf('bn') === 0 ? 'bn' : 'en', session: null, year: 'y1', data: {} };
+    try {
+      var r = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (r && typeof r === 'object') {
+        if (r.lang === 'en' || r.lang === 'bn') s.lang = r.lang;
+        if (typeof r.session === 'string' && C.eraForSession(D, r.session)) s.session = r.session;
+        if (ALL.indexOf(r.year) >= 0) s.year = r.year;
+        if (r.data && typeof r.data === 'object') s.data = r.data;
+      }
+    } catch (e) {}
     return s;
+  }
+  var tSave;
+  function save() { clearTimeout(tSave); tSave = setTimeout(function () { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }, 100); }
+  function yst(yid) {
+    var s = state.data[state.session] || (state.data[state.session] = {});
+    var y = s[yid];
+    if (!y || typeof y !== 'object') {
+      y = s[yid] = { c: {}, sel: null, custom: [], manual: { on: false, gpa: '', credits: '' } };
+    }
+    if (!y.c) y.c = {}; if (!Array.isArray(y.custom)) y.custom = []; if (!y.manual) y.manual = { on: false, gpa: '', credits: '' };
+    if (!Array.isArray(y.sel)) y.sel = defaultSel(C.yearFor(D, state.session, yid));
+    return y;
   }
   function defaultSel(y) {
-    // Pre-select the first N courses of each "pick any N" group.
     var sel = [], seen = {};
-    y.courses.forEach(function (c) {
-      if (!c.pick) return;
-      seen[c.section] = (seen[c.section] || 0) + 1;
-      if (seen[c.section] <= c.pick) sel.push(c.code);
-    });
+    if (!y) return sel;
+    y.courses.forEach(function (c) { if (!c.pick) return; seen[c.section] = (seen[c.section] || 0) + 1; if (seen[c.section] <= c.pick) sel.push(c.code); });
     return sel;
   }
-  function load() {
-    var s = blank();
-    try {
-      var raw = JSON.parse(localStorage.getItem(KEY) || 'null');
-      if (raw && typeof raw === 'object') {
-        if (typeof raw.tab === 'string') s.tab = raw.tab;
-        if (typeof raw.bnDigits === 'boolean') s.bnDigits = raw.bnDigits;
-        Object.keys(s.years).forEach(function (id) {
-          var r = raw.years && raw.years[id];
-          if (r && typeof r === 'object') {
-            if (r.c && typeof r.c === 'object') s.years[id].c = r.c;
-            if (Array.isArray(r.sel)) s.years[id].sel = r.sel;
-          }
-        });
-        HONOURS.forEach(function (id) {
-          var r = raw.cgpa && raw.cgpa[id];
-          if (r && typeof r === 'object') {
-            s.cgpa[id] = { mode: ['auto', 'manual', 'off'].indexOf(r.mode) >= 0 ? r.mode : 'auto', gpa: String(r.gpa || ''), credits: String(r.credits || '') };
-          }
-        });
-      }
-    } catch (e) { /* ignore corrupt storage */ }
+
+  // ---------- helpers ----------
+  function t(k, v) {
+    var s = (STR[state.lang] && STR[state.lang][k]) || STR.en[k] || k;
+    if (v) Object.keys(v).forEach(function (x) { s = s.split('{' + x + '}').join(v[x]); });
     return s;
   }
-  var saveTimer;
-  function save() {
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(function () {
-      try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
-    }, 120);
-  }
-
-  // ---------- Helpers ----------
-  function n(x) { return state.bnDigits ? C.toBangla(x) : String(x); }
-  function f2(x) { return x === null || x === undefined ? '—' : n(Number(x).toFixed(2)); }
-  function el(tag, attrs, kids) {
+  function n(x) { return state.lang === 'bn' ? C.toBangla(x) : String(x); }
+  function f2(x) { return x === null || x === undefined ? '–' : n(Number(x).toFixed(2)); }
+  function sessLabel(id) { var a = id.split('-'); return n(a[0] + '–' + a[1].slice(2)); }
+  function eraLabel(era) { return era === 'old' ? t('oldSyl') : t('newSyl'); }
+  function el(tag, a, kids) {
     var e = document.createElement(tag);
-    if (attrs) Object.keys(attrs).forEach(function (k) {
-      var v = attrs[k];
-      if (v === null || v === undefined || v === false) return;
+    if (a) for (var k in a) {
+      var v = a[k];
+      if (v === null || v === undefined || v === false) continue;
       if (k === 'class') e.className = v;
       else if (k === 'text') e.textContent = v;
+      else if (k === 'html') e.innerHTML = v;
       else if (k.slice(0, 2) === 'on') e.addEventListener(k.slice(2), v);
       else e.setAttribute(k, v === true ? '' : v);
-    });
-    (kids || []).forEach(function (c) { if (c) e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
+    }
+    (kids || []).forEach(function (c) { if (c !== null && c !== undefined && c !== false) e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
     return e;
   }
-  function toast(msg) {
-    var t = document.getElementById('toast');
-    t.textContent = msg; t.classList.add('show');
-    clearTimeout(toast._t); toast._t = setTimeout(function () { t.classList.remove('show'); }, 2000);
+  var SVGNS = 'http://www.w3.org/2000/svg';
+  function sv(tag, a) { var e = document.createElementNS(SVGNS, tag); for (var k in a) e.setAttribute(k, a[k]); return e; }
+  function toast(m) { var x = document.getElementById('toast'); x.textContent = m; x.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(function () { x.classList.remove('show'); }, 2200); }
+  function countUp(node, to) {
+    var from = parseFloat(node.dataset.v || '0');
+    node.dataset.v = to === null ? '0' : String(to);
+    if (to === null) { node.textContent = '–'; return; }
+    if (reduceMotion || from === to) { node.textContent = f2(to); return; }
+    var t0 = performance.now(), dur = 650;
+    cancelAnimationFrame(node._raf);
+    (function step(now) {
+      var p = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - p, 3);
+      node.textContent = f2(from + (to - from) * e);
+      if (p < 1) node._raf = requestAnimationFrame(step);
+    })(t0);
   }
-  function fullMarks(c) { return c.marks || 100; }
-  function isCounted(yid, c) { return !c.pick || state.years[yid].sel.indexOf(c.code) >= 0; }
-  function sectionLabel(s) { return s || 'কোর্সসমূহ'; }
 
+  // ---------- calculations ----------
+  function isCounted(yid, c) { return !c.nonCredit && (!c.pick || yst(yid).sel.indexOf(c.code) >= 0); }
+  function entries(yid) {
+    var y = C.yearFor(D, state.session, yid), s = yst(yid), out = [];
+    if (y) y.courses.forEach(function (c) { out.push({ credits: c.credits, letter: (s.c[c.code] || {}).g || '', counted: isCounted(yid, c) }); });
+    s.custom.forEach(function (c) { out.push({ credits: c.credits, letter: c.g || '', counted: true }); });
+    return out;
+  }
   function yearResult(yid) {
-    var y = YEARS[yid], ys = state.years[yid];
-    return C.computeGPA(y.courses.map(function (c) {
-      var e = ys.c[c.code] || {};
-      return { credits: c.credits, letter: e.g || '', counted: isCounted(yid, c) };
-    }));
+    var y = C.yearFor(D, state.session, yid), s = yst(yid), r = C.computeGPA(entries(yid));
+    r.manual = false;
+    if (s.manual.on) {
+      var g = C.parseNum(s.manual.gpa), cr = C.parseNum(s.manual.credits);
+      if (isNaN(cr)) cr = y ? y.totalCredits : NaN;
+      r = { gpa: !isNaN(g) && g >= 0 && g <= 4 ? C.round2(g) : null, credits: isNaN(cr) ? 0 : cr, manual: true, fails: 0, graded: 0, totalCredits: isNaN(cr) ? 0 : cr };
+      r.letter = r.gpa === null ? null : C.letterFromGPA(r.gpa);
+      r.needCredits = isNaN(cr);
+    }
+    return r;
   }
-  function countedCourses(yid) { return YEARS[yid].courses.filter(function (c) { return isCounted(yid, c); }).length; }
+  function cgpa() { return C.computeCGPA(HON.map(function (id) { var r = yearResult(id); return { gpa: r.gpa, credits: r.credits }; })); }
+  function allLetters() {
+    var out = [];
+    ALL.forEach(function (yid) {
+      if (yst(yid).manual.on) return;
+      var y = C.yearFor(D, state.session, yid), s = yst(yid);
+      if (y) y.courses.forEach(function (c) { var g = (s.c[c.code] || {}).g; if (g && isCounted(yid, c)) out.push(g); });
+      s.custom.forEach(function (c) { if (c.g) out.push(c.g); });
+    });
+    return out;
+  }
 
-  function cgpaInputs() {
-    return HONOURS.map(function (id) {
-      var cs = state.cgpa[id], r = yearResult(id);
-      if (cs.mode === 'off') return { id: id, gpa: null, credits: 0 };
-      if (cs.mode === 'manual') {
-        var g = C.parseNum(cs.gpa), cr = C.parseNum(cs.credits);
-        if (isNaN(cr)) cr = YEARS[id].totalCredits;
-        return { id: id, gpa: isNaN(g) ? null : g, credits: cr };
+  // ---------- chrome (header, footer, lang) ----------
+  function applyLang() {
+    document.documentElement.lang = state.lang;
+    document.querySelectorAll('[data-i18n]').forEach(function (e) { e.textContent = t(e.dataset.i18n); });
+    document.querySelectorAll('[data-i18n-aria]').forEach(function (e) { e.setAttribute('aria-label', t(e.dataset.i18nAria)); });
+    var lb = document.getElementById('langBtn');
+    lb.textContent = t('langSwitch'); lb.lang = state.lang === 'en' ? 'bn' : 'en';
+    lb.setAttribute('aria-label', state.lang === 'en' ? 'বাংলায় দেখুন' : 'Switch to English');
+    document.title = state.lang === 'bn' ? 'পরিসংখ্যান সিজিপিএ ক্যালকুলেটর · জাতীয় বিশ্ববিদ্যালয়' : 'NU Statistics CGPA Calculator';
+    var sb = document.getElementById('sessionBtn');
+    sb.hidden = !state.session;
+    if (state.session) { sb.textContent = sessLabel(state.session); sb.setAttribute('aria-label', t('sessionChip', { s: sessLabel(state.session) }) + ' · ' + t('change')); }
+    document.getElementById('disclaimer').textContent = t('disclaimer');
+    var fc = document.getElementById('footCredit'); fc.innerHTML = '';
+    var parts = t('credit').split(/(\{link\}|\{me\}|\{src\})/);
+    parts.forEach(function (p) {
+      if (p === '{link}') fc.appendChild(el('a', { href: 'https://www.nu.ac.bd/syllabus-honours.php', target: '_blank', rel: 'noopener', text: t('nuSite') }));
+      else if (p === '{me}') fc.appendChild(el('a', { href: 'https://github.com/mamun-abdu', target: '_blank', rel: 'noopener', text: 'Mamun Abdu' }));
+      else if (p === '{src}') fc.appendChild(el('a', { href: 'https://github.com/mamun-abdu/nu-stats-cgpa-calculator', target: '_blank', rel: 'noopener', text: t('source') }));
+      else fc.appendChild(document.createTextNode(p));
+    });
+  }
+
+  // ---------- session picker ----------
+  function sessionGrid(onPick) {
+    var g = el('div', { class: 'sessions', role: 'group', 'aria-label': t('pickTitleShort') });
+    D.sessions.slice().reverse().forEach(function (s) {
+      g.appendChild(el('button', { type: 'button', class: 'sess' + (s.era === 'new' ? ' new' : ''), 'aria-pressed': String(state.session === s.id),
+        onclick: function () { onPick(s.id); } }, [el('b', { class: 'num', text: sessLabel(s.id) }), el('span', { text: eraLabel(s.era) })]));
+    });
+    return g;
+  }
+  function chooseSession(id) {
+    var changed = state.session !== id;
+    state.session = id; if (changed) state.year = state.year || 'y1';
+    save(); applyLang(); render();
+  }
+  function openSessionDialog() {
+    var d = document.getElementById('sessionDialog'), body = document.getElementById('sdBody');
+    body.innerHTML = '';
+    body.appendChild(sessionGrid(function (id) { d.close(); chooseSession(id); }));
+    if (d.showModal) d.showModal(); else d.setAttribute('open', '');
+    var cur = body.querySelector('[aria-pressed="true"]'); if (cur) cur.focus();
+  }
+
+  // ---------- render ----------
+  var main = document.getElementById('main');
+  function render() {
+    main.innerHTML = '';
+    if (!state.session) {
+      main.appendChild(el('section', { class: 'hello fade-in' }, [
+        el('h1', { text: t('pickHello') }), el('p', { text: t('pickLead') }), sessionGrid(chooseSession)
+      ]));
+      return;
+    }
+    var dash = el('div', { class: 'dash fade-in' });
+    var side = el('aside', { class: 'side' }, [renderHero(), renderMix()]);
+    var right = el('section', { 'aria-label': t('gpa') }, [renderYearTabs(), renderYear(state.year), renderScale()]);
+    dash.appendChild(side); dash.appendChild(right);
+    main.appendChild(dash);
+    refresh();
+  }
+
+  // Hero: CGPA + bar chart
+  function renderHero() {
+    var big = el('div', { class: 'big num', id: 'cgVal', 'aria-live': 'polite' });
+    return el('div', { class: 'card hero' }, [
+      el('div', { class: 'hero-top' }, [
+        el('div', null, [el('div', { class: 'eyebrow', text: t('yourCgpa') }), big]),
+        el('span', { class: 'badge', id: 'cgLetter' })
+      ]),
+      el('p', { class: 'sub', id: 'cgSub' }),
+      el('div', { class: 'chart' }, [el('h3', { text: t('gpaByYear') }), el('div', { id: 'bars' })])
+    ]);
+  }
+  function drawBars() {
+    var host = document.getElementById('bars'); if (!host) return;
+    var W = 300, H = 140, pad = 22, base = H - 22, top = 18;
+    var svg = sv('svg', { viewBox: '0 0 ' + W + ' ' + H, width: '100%', class: 'bars', role: 'img' });
+    var labels = [], ids = ALL.filter(function (id) { return id !== 'ms' || yearResult('ms').gpa !== null; });
+    var bw = Math.min(38, (W - pad * 2) / ids.length - 14), step = (W - pad * 2) / ids.length;
+    svg.appendChild(sv('line', { x1: pad - 6, x2: W - pad + 6, y1: base, y2: base }));
+    ids.forEach(function (id, i) {
+      var r = yearResult(id), x = pad + step * i + (step - bw) / 2;
+      var h = r.gpa === null ? 0 : (r.gpa / 4) * (base - top);
+      if (r.gpa === null) svg.appendChild(sv('rect', { x: x, y: top, width: bw, height: base - top, rx: 8, class: 'ghost' }));
+      else {
+        svg.appendChild(sv('rect', { x: x, y: base - h, width: bw, height: h, rx: 8, class: 'b' + (id === 'ms' ? ' ms' : '') }));
+        var v = sv('text', { x: x + bw / 2, y: base - h - 5, 'text-anchor': 'middle', class: 'v' }); v.textContent = f2(r.gpa); svg.appendChild(v);
       }
-      return { id: id, gpa: r.gpa, credits: r.credits };
+      var lt = sv('text', { x: x + bw / 2, y: H - 6, 'text-anchor': 'middle' }); lt.textContent = t(id + 's'); svg.appendChild(lt);
+      labels.push(t(id) + ': ' + (r.gpa === null ? '–' : r.gpa.toFixed(2)));
     });
+    svg.setAttribute('aria-label', t('gpaByYear') + '. ' + labels.join(', '));
+    host.innerHTML = ''; host.appendChild(svg);
   }
 
-  // ---------- Tabs ----------
-  var TAB_DEFS = D.years.map(function (y) { return { id: y.id, label: y.label, en: y.labelEn }; })
-    .concat([{ id: 'cgpa', label: 'CGPA', en: 'সমন্বিত' }, { id: 'scale', label: 'গ্রেডিং', en: 'Scale' }]);
-  if (TAB_DEFS.map(function (t) { return t.id; }).indexOf(state.tab) < 0) state.tab = 'y1';
-
-  function renderTabs() {
-    var host = document.getElementById('tabs');
-    host.innerHTML = '';
-    TAB_DEFS.forEach(function (t) {
-      var b = el('button', {
-        class: 'tab', role: 'tab', id: 'tab-' + t.id, type: 'button',
-        'aria-selected': String(state.tab === t.id), 'aria-controls': 'panel', tabindex: state.tab === t.id ? '0' : '-1',
-        onclick: function () { selectTab(t.id, false); }
-      }, [el('span', { class: 't-main', text: t.label }), el('span', { class: 't-sub', 'data-sub': t.id, text: t.en })]);
-      host.appendChild(b);
-    });
-    host.onkeydown = function (e) {
-      var ids = TAB_DEFS.map(function (t) { return t.id; }), i = ids.indexOf(state.tab), j = i;
-      if (e.key === 'ArrowRight') j = (i + 1) % ids.length;
-      else if (e.key === 'ArrowLeft') j = (i - 1 + ids.length) % ids.length;
-      else if (e.key === 'Home') j = 0;
-      else if (e.key === 'End') j = ids.length - 1;
-      else return;
-      e.preventDefault(); selectTab(ids[j], true);
-    };
-    updateTabSubs();
+  // Grade mix donut
+  function renderMix() {
+    return el('div', { class: 'card mix' }, [el('h3', { text: t('gradeMix') }), el('div', { class: 'mix-body', id: 'mixBody' })]);
   }
-  function updateTabSubs() {
-    D.years.forEach(function (y) {
-      var s = document.querySelector('[data-sub="' + y.id + '"]');
-      if (!s) return;
-      var r = yearResult(y.id);
-      s.textContent = r.gpa === null ? y.labelEn : 'GPA ' + f2(r.gpa);
-    });
-    var cs = document.querySelector('[data-sub="cgpa"]');
-    if (cs) { var c = C.computeCGPA(cgpaInputs()); cs.textContent = c.cgpa === null ? 'সমন্বিত' : f2(c.cgpa); }
-  }
-  function selectTab(id, focus) {
-    state.tab = id; save();
-    renderTabs(); renderPanel();
-    var b = document.getElementById('tab-' + id);
-    if (b) { b.scrollIntoView({ block: 'nearest', inline: 'center' }); if (focus) b.focus(); }
-    window.scrollTo({ top: 0 });
-  }
-
-  // ---------- Year panel ----------
-  function gradeOptions(selected) {
-    var s = el('select', null, [el('option', { value: '', text: '— গ্রেড —' })]);
+  function drawMix() {
+    var host = document.getElementById('mixBody'); if (!host) return;
+    var letters = allLetters(), dist = C.gradeDistribution(letters), total = letters.length;
+    var R = 46, Cc = 2 * Math.PI * R, off = 0;
+    var svg = sv('svg', { viewBox: '0 0 120 120', width: '116', height: '116', class: 'donut', role: 'img' });
+    svg.appendChild(sv('circle', { cx: 60, cy: 60, r: R, class: 'track' }));
+    var desc = [];
     C.GRADES.forEach(function (g) {
-      s.appendChild(el('option', { value: g.letter, text: g.letter + '  (' + n(g.point.toFixed(2)) + ')', selected: g.letter === selected }));
+      var k = dist[g.letter]; if (!k) return;
+      var len = (k / total) * Cc;
+      svg.appendChild(sv('circle', { cx: 60, cy: 60, r: R, stroke: GCOL[g.letter], 'stroke-dasharray': Math.max(0, len - 1.5) + ' ' + Cc, 'stroke-dashoffset': -off, transform: 'rotate(-90 60 60)' }));
+      off += len; desc.push(g.letter + ' ' + k);
     });
+    var tx = sv('text', { x: 60, y: 62, 'text-anchor': 'middle' }); tx.textContent = n(total); svg.appendChild(tx);
+    var ts = sv('text', { x: 60, y: 78, 'text-anchor': 'middle', class: 's' }); ts.textContent = t('coursesGraded'); svg.appendChild(ts);
+    svg.setAttribute('aria-label', t('gradeMix') + ': ' + (desc.join(', ') || t('noGradesYet')));
+    var lg = el('ul', { class: 'legend' });
+    if (!total) lg.appendChild(el('li', { class: 'c', text: t('noGradesYet') }));
+    C.GRADES.forEach(function (g) { if (dist[g.letter]) lg.appendChild(el('li', null, [el('i', { style: 'background:' + GCOL[g.letter] }), g.letter + ' ', el('span', { class: 'c num', text: '×' + n(dist[g.letter]) })])); });
+    host.innerHTML = ''; host.appendChild(svg); host.appendChild(lg);
+  }
+
+  // Year tabs
+  function renderYearTabs() {
+    var bar = el('div', { class: 'years', role: 'tablist', 'aria-label': t('gpa') });
+    ALL.forEach(function (id) {
+      var y = C.yearFor(D, state.session, id);
+      bar.appendChild(el('button', { type: 'button', role: 'tab', class: 'yt', id: 'yt-' + id, 'aria-selected': String(state.year === id), 'aria-controls': 'yearPanel', tabindex: state.year === id ? '0' : '-1',
+        onclick: function () { selectYear(id); } }, [el('span', null, [t(id + 's'), y ? null : el('span', { class: 'dot', title: t('notPubTitle'), 'aria-label': t('notPubTitle') })]), el('small', { class: 'num', 'data-ygpa': id })]));
+    });
+    bar.addEventListener('keydown', function (e) {
+      var i = ALL.indexOf(state.year), j = i;
+      if (e.key === 'ArrowRight') j = (i + 1) % ALL.length; else if (e.key === 'ArrowLeft') j = (i - 1 + ALL.length) % ALL.length;
+      else if (e.key === 'Home') j = 0; else if (e.key === 'End') j = ALL.length - 1; else return;
+      e.preventDefault(); selectYear(ALL[j], true);
+    });
+    return bar;
+  }
+  function selectYear(id, focus) {
+    state.year = id; save();
+    document.querySelectorAll('.yt').forEach(function (b) { var on = b.id === 'yt-' + id; b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; });
+    var old = document.getElementById('yearPanel'); var fresh = renderYear(id); fresh.classList.add('fade-in'); old.replaceWith(fresh);
+    refresh();
+    var b = document.getElementById('yt-' + id); if (b) { b.scrollIntoView({ block: 'nearest', inline: 'nearest' }); if (focus) b.focus(); }
+  }
+
+  function gradeSelect(cur, label) {
+    var s = el('select', { class: 'gsel', 'aria-label': label }, [el('option', { value: '', text: '—' })]);
+    C.GRADES.forEach(function (g) { s.appendChild(el('option', { value: g.letter, text: g.letter, selected: g.letter === cur })); });
+    paintSel(s);
     return s;
+  }
+  function paintSel(s) {
+    var v = s.value; s.classList.toggle('set', !!v);
+    s.style.background = v ? GCOL[v] : ''; s.style.color = v ? (DARKTXT[v] ? '#2a2420' : '#fff') : '';
   }
 
   function renderYear(yid) {
-    var y = YEARS[yid], ys = state.years[yid];
-    var panel = el('section', { class: 'panel', id: 'panel', role: 'tabpanel', 'aria-labelledby': 'tab-' + yid });
-
-    panel.appendChild(el('div', { class: 'panel-head' }, [
+    var y = C.yearFor(D, state.session, yid), s = yst(yid), era = C.eraForSession(D, state.session);
+    var card = el('div', { class: 'card year', id: 'yearPanel', role: 'tabpanel', 'aria-labelledby': 'yt-' + yid });
+    var yn = el('div', { class: 'n num', id: 'yVal' });
+    card.appendChild(el('div', { class: 'yh' }, [
       el('div', null, [
-        el('h2', null, [y.label + ' ', el('span', { class: 'en', text: '· ' + y.labelEn })]),
-        el('p', { class: 'syllabus', text: y.syllabus })
-      ])
-    ]));
-
-    // Summary card
-    var ringVal = el('div', { class: 'ring-val', id: 'sumGpa' });
-    var ring = el('div', { class: 'ring', id: 'sumRing', role: 'img', 'aria-label': 'GPA' }, [
-      el('div', { class: 'ring-inner' }, [ringVal, el('div', { class: 'ring-lbl', text: 'GPA (৪.০০ স্কেল)' })])
-    ]);
-    function stat(k, id, cls) { return el('div', { class: 'stat ' + (cls || '') , id: id + 'Box' }, [el('div', { class: 'k', text: k }), el('div', { class: 'v', id: id })]); }
-    panel.appendChild(el('div', { class: 'card summary', 'aria-live': 'polite' }, [
-      ring,
-      el('div', { class: 'stats' }, [
-        stat('লেটার গ্রেড', 'sumLetter'), stat('ক্রেডিট গণনা', 'sumCredits'),
-        stat('কোর্স সম্পন্ন', 'sumGraded'), stat('ফেল (F)', 'sumFails')
+        el('h2', { text: t(yid) }),
+        el('div', { class: 'tag' }, y ? [t('syllabusTag', { e: n(y.syllabus.replace('-', '–')) }), ' · ', el('a', { href: y.source, target: '_blank', rel: 'noopener', text: t('officialPdf') })] : [t('notPubTitle')])
       ]),
-      el('div', { class: 'progress', 'aria-hidden': 'true' }, [el('span', { id: 'sumBar' })])
+      el('div', { class: 'ygpa' }, [yn, el('div', { class: 'l', id: 'yLetter' })])
     ]));
+    card.appendChild(el('div', { class: 'meter', 'aria-hidden': 'true' }, [el('span', { id: 'yBar' })]));
+    card.appendChild(el('div', { class: 'facts', id: 'yFacts' }));
 
-    // Toolbar
-    var quickSel = gradeOptions('');
-    quickSel.id = 'quickGrade';
-    quickSel.className = 'btn';
-    quickSel.style.paddingRight = '14px';
-    quickSel.setAttribute('aria-label', 'সব খালি কোর্সে একই গ্রেড বসান');
-    quickSel.firstChild.textContent = 'খালি ঘরে একই গ্রেড…';
-    quickSel.addEventListener('change', function () {
-      var g = quickSel.value; if (!g) return;
-      y.courses.forEach(function (c) {
-        if (!isCounted(yid, c)) return;
-        var e = ys.c[c.code];
-        if (!e || !e.g) ys.c[c.code] = { g: g, m: '' };
+    // manual GPA toggle
+    var cb = el('input', { type: 'checkbox', checked: s.manual.on, id: 'man-' + yid });
+    card.appendChild(el('label', { class: 'switch', for: 'man-' + yid }, [cb, el('span', { class: 'tr', 'aria-hidden': 'true' }), el('span', { text: t('manualToggle') })]));
+    var mg = el('input', { id: 'mg-' + yid, type: 'text', inputmode: 'decimal', autocomplete: 'off', value: s.manual.gpa, placeholder: n('3.50') });
+    var mc = el('input', { id: 'mc-' + yid, type: 'text', inputmode: 'decimal', autocomplete: 'off', value: s.manual.credits, placeholder: y ? n(y.totalCredits) : n('32') });
+    var mnote = el('p', { id: 'mNote', text: t('manualNote') });
+    var man = el('div', { class: 'manual', hidden: !s.manual.on }, [
+      mnote,
+      el('div', { class: 'field' }, [el('label', { for: mg.id, text: t('manualGpa') }), mg]),
+      el('div', { class: 'field' }, [el('label', { for: mc.id, text: t('manualCredits') }), mc])
+    ]);
+    card.appendChild(man);
+    var body = el('div', { class: s.manual.on ? 'dim' : '' });
+    cb.addEventListener('change', function () { s.manual.on = cb.checked; man.hidden = !cb.checked; body.className = cb.checked ? 'dim' : ''; save(); refresh(); });
+    function onMan() {
+      s.manual.gpa = mg.value; s.manual.credits = mc.value; save();
+      var g = C.parseNum(mg.value), c = C.parseNum(mc.value);
+      mg.setAttribute('aria-invalid', String(mg.value.trim() !== '' && (isNaN(g) || g > 4)));
+      mc.setAttribute('aria-invalid', String(mc.value.trim() !== '' && (isNaN(c) || c <= 0)));
+      refresh();
+    }
+    mg.addEventListener('input', onMan); mc.addEventListener('input', onMan);
+
+    if (y) {
+      var qs = gradeSelect('', t('quickFill')); qs.className = 'ghost-btn'; qs.style.cssText = ''; qs.firstChild.textContent = t('quickFill');
+      qs.addEventListener('change', function () {
+        var g = qs.value; if (!g) return;
+        y.courses.forEach(function (c) { if (isCounted(yid, c) && !(s.c[c.code] || {}).g) s.c[c.code] = { g: g, m: '' }; });
+        save(); selectYear(yid); toast(t('filled', { g: g }));
       });
-      save(); renderPanel(); toast('খালি কোর্সগুলোতে ' + g + ' বসানো হয়েছে');
-    });
-    panel.appendChild(el('div', { class: 'toolbar' }, [
-      quickSel,
-      el('button', { class: 'btn danger', type: 'button', text: '↺ এই বর্ষ রিসেট', onclick: function () {
-        if (!confirm(y.label + '-এর সব গ্রেড মুছে ফেলবেন?')) return;
-        state.years[yid] = { c: {}, sel: defaultSel(y) }; save(); renderPanel(); toast('রিসেট হয়েছে');
-      } }),
-      el('button', { class: 'btn', type: 'button', text: 'CGPA দেখুন →', onclick: function () { selectTab('cgpa'); } })
-    ]));
+      body.appendChild(el('div', { class: 'tools' }, [qs, el('button', { type: 'button', class: 'ghost-btn', text: t('reset'), onclick: function () {
+        if (!confirm(t('resetQ', { y: t(yid) }))) return;
+        state.data[state.session][yid] = null; save(); selectYear(yid); toast(t('cleared'));
+      } })]));
 
-    // Sections
-    var groups = [], idx = {};
-    y.courses.forEach(function (c) {
-      var k = c.section || '';
-      if (!(k in idx)) { idx[k] = groups.length; groups.push({ name: k, pick: c.pick || 0, courses: [] }); }
-      groups[idx[k]].courses.push(c);
-    });
-    groups.forEach(function (g, gi) {
-      var head = el('div', { class: 'section-head' }, [el('h3', { id: 'sec-' + yid + '-' + gi, text: sectionLabel(g.name) })]);
-      var pill = el('span', { class: 'pill' });
-      head.appendChild(pill);
-      var list = el('div', { class: 'courses', role: 'list', 'aria-labelledby': 'sec-' + yid + '-' + gi });
-      g.courses.forEach(function (c) { list.appendChild(courseRow(yid, c, g)); });
-      var sec = el('div', { class: 'section' }, [head, list]);
-      sec._update = function () {
-        if (g.pick) {
-          var chosen = g.courses.filter(function (c) { return ys.sel.indexOf(c.code) >= 0; }).length;
-          pill.textContent = 'যেকোনো ' + n(g.pick) + 'টি · ' + n(chosen) + '/' + n(g.pick) + ' নির্বাচিত';
-          pill.className = 'pill ' + (chosen === g.pick ? 'ok' : 'warn');
-        } else {
-          var cr = g.courses.reduce(function (s, c) { return s + c.credits; }, 0);
-          pill.textContent = n(g.courses.length) + 'টি কোর্স · ' + n(cr) + ' ক্রেডিট';
+      var groups = [], idx = {};
+      y.courses.forEach(function (c) { var k = c.section || ''; if (!(k in idx)) { idx[k] = groups.length; groups.push({ key: k, pick: c.pick || 0, courses: [] }); } groups[idx[k]].courses.push(c); });
+      groups.forEach(function (g) {
+        var title = g.pick ? t(g.key, { n: n(g.pick) }) : t(g.key || 'courses');
+        var cnt = el('span', { class: 'cnt num' });
+        var list = el('div', { class: 'list', role: 'list' });
+        g.courses.forEach(function (c) { list.appendChild(courseRow(yid, c, g, update)); });
+        function update() {
+          if (!g.pick) { cnt.textContent = n(g.courses.filter(function (c) { return !c.nonCredit; }).reduce(function (a, c) { return a + c.credits; }, 0)) + ' ' + t('cr'); return; }
+          var k = g.courses.filter(function (c) { return s.sel.indexOf(c.code) >= 0; }).length;
+          cnt.textContent = t('chosen', { a: n(k), b: n(g.pick) }); cnt.className = 'cnt num ' + (k === g.pick ? 'ok' : 'warn');
         }
-      };
-      sec._update();
-      panel.appendChild(sec);
+        update();
+        body.appendChild(el('div', { class: 'group' }, [el('div', { class: 'gh' }, [el('h3', { text: title }), cnt]), list]));
+      });
+    } else {
+      body.appendChild(el('div', { class: 'empty' }, [
+        el('div', { html: '<svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true"><rect x="12" y="8" width="40" height="48" rx="8" fill="var(--soft)" stroke="var(--line)" stroke-width="2"/><path d="M22 22h20M22 30h20M22 38h12" stroke="var(--line)" stroke-width="3" stroke-linecap="round"/><circle cx="46" cy="46" r="10" fill="var(--sun)"/><path d="M46 41v6M46 50.5v.5" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>' }),
+        el('h3', { text: t('notPubTitle') }),
+        el('p', { text: t('notPubText', { y: t(yid) }) })
+      ]));
+    }
+
+    // custom courses
+    var cl = el('div', { class: 'list', role: 'list' });
+    function drawCustom() {
+      cl.innerHTML = '';
+      s.custom.forEach(function (c, i) {
+        var sel = gradeSelect(c.g || '', t('gradeFor', { c: c.name }));
+        sel.addEventListener('change', function () { c.g = sel.value; paintSel(sel); save(); refresh(); });
+        cl.appendChild(el('div', { class: 'row', role: 'listitem' }, [
+          el('div', null, [el('div', { class: 'r-name', text: c.name }), el('div', { class: 'r-meta num', text: n(c.credits) + ' ' + t('cr') })]),
+          el('div', { class: 'ctl' }, [sel, el('button', { type: 'button', class: 'xbtn', 'aria-label': t('remove', { c: c.name }), text: '×', onclick: function () { s.custom.splice(i, 1); save(); drawCustom(); refresh(); } })])
+        ]));
+      });
+      cl.hidden = !s.custom.length;
+    }
+    drawCustom();
+    var an = el('input', { id: 'an-' + yid, type: 'text', autocomplete: 'off', maxlength: '80' });
+    var ac = el('input', { id: 'ac-' + yid, type: 'text', inputmode: 'decimal', autocomplete: 'off', placeholder: n('4') });
+    var ag = gradeSelect('', t('gradePh')); ag.id = 'ag-' + yid; ag.className = 'gsel'; ag.style.width = '100%';
+    var form = el('form', { class: 'add', novalidate: true }, [
+      el('div', { class: 'field' }, [el('label', { for: an.id, text: t('courseName') }), an]),
+      el('div', { class: 'field' }, [el('label', { for: ac.id, text: t('creditsLbl') }), ac]),
+      el('div', { class: 'field' }, [el('label', { for: ag.id, text: t('gradePh') }), ag]),
+      el('button', { class: 'btn go', type: 'submit', text: t('add') })
+    ]);
+    ag.addEventListener('change', function () { paintSel(ag); });
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var name = an.value.trim(), cr = C.parseNum(ac.value);
+      if (!name || isNaN(cr) || cr <= 0 || cr > 20) { toast(t('addErr')); (name ? ac : an).focus(); return; }
+      s.custom.push({ name: name, credits: cr, g: ag.value }); save();
+      an.value = ''; ac.value = ''; ag.value = ''; paintSel(ag); drawCustom(); refresh(); an.focus();
     });
-    return panel;
+    body.appendChild(el('div', { class: 'group' }, [el('div', { class: 'gh' }, [el('h3', { text: y ? t('myCourses') : t('addCourse') })]), cl, form]));
+    card.appendChild(body);
+    if (yid === 'ms') card.appendChild(el('p', { class: 'sub', text: t('msNote') }));
+    return card;
   }
 
-  function courseRow(yid, c, group) {
-    var ys = state.years[yid];
-    var entry = ys.c[c.code] || {};
-    var uid = yid + '-' + c.code;
+  function courseRow(yid, c, g, groupUpdate) {
+    var s = yst(yid), e = s.c[c.code] || {}, full = c.marks || 100;
     var counted = isCounted(yid, c);
-    var full = fullMarks(c);
-
-    var letter = el('span', { class: 'letter none', text: '—' });
-    var pt = el('span', { class: 'pt' });
-    var sel = gradeOptions(entry.g || '');
-    sel.id = 'g-' + uid;
-    var marks = el('input', { id: 'm-' + uid, type: 'text', inputmode: 'decimal', autocomplete: 'off', placeholder: '০–' + C.toBangla(full), value: entry.m || '', 'aria-describedby': 'e-' + uid });
-    var err = el('div', { class: 'err', id: 'e-' + uid, 'aria-live': 'polite' });
-
-    var row = el('div', { class: 'card course' + (counted ? '' : ' off'), role: 'listitem' });
-    var meta = el('div', { class: 'c-meta' }, [
-      el('span', { class: 'code', text: c.code }),
-      el('span', { class: 'cr', text: n(c.credits) + ' ক্রেডিট' + (c.marks ? ' · ' + n(c.marks) + ' নম্বর' : '') })
-    ]);
-    var info = el('div', null, [meta, el('div', { class: 'c-name', text: c.name })]);
-    if (group.pick) {
+    var meta = el('div', { class: 'r-meta num' }, [el('span', { text: c.code }), c.nonCredit ? null : el('span', { text: n(c.credits) + ' ' + t('cr') }), c.marks ? el('span', { text: n(c.marks) + ' ' + t('marks') }) : null]);
+    var row = el('div', { class: 'row' + (counted || c.nonCredit ? '' : ' off'), role: 'listitem' });
+    row.appendChild(el('div', null, [el('div', { class: 'r-name', text: c.name }), meta]));
+    if (c.nonCredit) { meta.appendChild(el('span', { class: 'nc', text: t('nonCredit') })); return row; }
+    if (g.pick) {
       var cb = el('input', { type: 'checkbox', checked: counted });
       cb.addEventListener('change', function () {
-        var chosen = group.courses.filter(function (x) { return ys.sel.indexOf(x.code) >= 0; }).length;
-        if (cb.checked && chosen >= group.pick) {
-          cb.checked = false;
-          toast('এই গ্রুপ থেকে সর্বোচ্চ ' + n(group.pick) + 'টি বেছে নেওয়া যাবে — আগে একটি বাদ দিন');
-          return;
-        }
-        if (cb.checked) ys.sel.push(c.code); else ys.sel = ys.sel.filter(function (x) { return x !== c.code; });
-        save(); renderPanel(true);
+        var k = g.courses.filter(function (x) { return s.sel.indexOf(x.code) >= 0; }).length;
+        if (cb.checked && k >= g.pick) { cb.checked = false; toast(t('pickLimit', { n: n(g.pick) })); return; }
+        if (cb.checked) s.sel.push(c.code); else s.sel = s.sel.filter(function (x) { return x !== c.code; });
+        row.classList.toggle('off', !cb.checked); save(); groupUpdate(); refresh();
       });
-      info.appendChild(el('label', { class: 'pick', style: 'margin-top:6px' }, [cb, el('span', { text: counted ? 'এই পেপারটি নিয়েছি ✓' : 'এই পেপারটি নিয়েছি?' })]));
+      meta.appendChild(el('label', null, [cb, t('took')]));
     }
-    row.appendChild(el('div', { class: 'c-top' }, [info, el('div', { class: 'c-res' }, [letter, pt])]));
-    row.appendChild(el('div', { class: 'inputs' }, [
-      el('div', { class: 'field' }, [el('label', { for: 'm-' + uid, text: 'প্রাপ্ত নম্বর (' + n(full) + '-এর মধ্যে)' }), marks, err]),
-      el('div', { class: 'field' }, [el('label', { for: 'g-' + uid, text: 'অথবা গ্রেড বাছুন' }), sel])
-    ]));
-
-    function paint() {
-      var e = ys.c[c.code] || {};
-      var g = e.g ? C.gradeByLetter(e.g) : null;
-      letter.textContent = g ? g.letter : '—';
-      letter.className = 'letter' + (g ? (g.point === 0 ? ' f' : '') : ' none');
-      pt.textContent = g ? n(g.point.toFixed(2)) + ' পয়েন্ট' : '';
-      row.classList.toggle('has-grade', !!g);
-      row.classList.toggle('is-fail', !!g && g.point === 0);
-    }
-    marks.addEventListener('input', function () {
-      var raw = marks.value, v = C.parseNum(raw);
-      if (raw.trim() === '') { err.textContent = ''; marks.removeAttribute('aria-invalid'); ys.c[c.code] = { g: '', m: '' }; sel.value = ''; }
-      else {
-        var g = C.gradeFromMarks(v, full);
-        if (!g) { err.textContent = '০ থেকে ' + C.toBangla(full) + '-এর মধ্যে নম্বর লিখুন'; marks.setAttribute('aria-invalid', 'true'); ys.c[c.code] = { g: '', m: raw }; sel.value = ''; }
-        else { err.textContent = ''; marks.removeAttribute('aria-invalid'); ys.c[c.code] = { g: g.letter, m: raw }; sel.value = g.letter; }
-      }
-      paint(); save(); updateYearSummary(yid);
+    var uid = yid + '-' + c.code;
+    var mk = el('input', { class: 'in num', id: 'm-' + uid, type: 'text', inputmode: 'decimal', autocomplete: 'off', placeholder: t('marksPh'), value: e.m || '', 'aria-label': c.name + ' · ' + t('marksOf', { m: n(full) }), title: t('marksOf', { m: n(full) }) });
+    var sel = gradeSelect(e.g || '', t('gradeFor', { c: c.name })); sel.id = 'g-' + uid;
+    mk.addEventListener('input', function () {
+      var raw = mk.value, v = C.parseNum(raw), gr = raw.trim() === '' ? null : C.gradeFromMarks(v, full);
+      var bad = raw.trim() !== '' && !gr;
+      mk.setAttribute('aria-invalid', String(bad)); mk.title = bad ? t('marksErr', { m: n(full) }) : t('marksOf', { m: n(full) });
+      s.c[c.code] = { g: gr ? gr.letter : '', m: raw }; sel.value = gr ? gr.letter : ''; paintSel(sel);
+      save(); refresh();
     });
-    sel.addEventListener('change', function () {
-      ys.c[c.code] = { g: sel.value, m: '' };
-      marks.value = ''; err.textContent = ''; marks.removeAttribute('aria-invalid');
-      paint(); save(); updateYearSummary(yid);
-    });
-    if (counted === false) { marks.disabled = true; sel.disabled = true; }
-    if (entry.m && !C.gradeFromMarks(C.parseNum(entry.m), full)) { err.textContent = '০ থেকে ' + C.toBangla(full) + '-এর মধ্যে নম্বর লিখুন'; marks.setAttribute('aria-invalid', 'true'); }
-    paint();
+    mk.addEventListener('blur', function () { if (mk.getAttribute('aria-invalid') === 'true') toast(t('marksErr', { m: n(full) })); });
+    sel.addEventListener('change', function () { s.c[c.code] = { g: sel.value, m: '' }; mk.value = ''; mk.removeAttribute('aria-invalid'); paintSel(sel); save(); refresh(); });
+    row.appendChild(el('div', { class: 'ctl' }, [mk, sel]));
     return row;
   }
 
-  function updateYearSummary(yid) {
-    var r = yearResult(yid);
-    var g = document.getElementById('sumGpa');
-    if (g) {
-      g.textContent = f2(r.gpa);
-      document.getElementById('sumRing').style.setProperty('--p', r.gpa === null ? 0 : (r.gpa / 4) * 100);
-      document.getElementById('sumRing').setAttribute('aria-label', 'GPA ' + (r.gpa === null ? 'এখনো হিসাব হয়নি' : r.gpa.toFixed(2)));
-      var L = document.getElementById('sumLetter');
-      L.textContent = r.letter || '—';
-      document.getElementById('sumCredits').textContent = n(r.credits) + ' / ' + n(r.totalCredits);
-      var cc = countedCourses(yid);
-      document.getElementById('sumGraded').textContent = n(r.graded) + ' / ' + n(cc);
-      document.getElementById('sumFails').textContent = n(r.fails);
-      document.getElementById('sumFailsBox').className = 'stat ' + (r.fails ? 'bad' : (r.graded ? 'good' : ''));
-      document.getElementById('sumBar').style.width = (cc ? (r.graded / cc) * 100 : 0) + '%';
-    }
-    updateTabSubs(); updateDock();
-  }
-
-  // ---------- CGPA panel ----------
-  function renderCGPA() {
-    var panel = el('section', { class: 'panel', id: 'panel', role: 'tabpanel', 'aria-labelledby': 'tab-cgpa' });
-    panel.appendChild(el('div', { class: 'panel-head' }, [el('div', null, [
-      el('h2', null, ['সমন্বিত CGPA ', el('span', { class: 'en', text: '· Honours (৪ বছর)' })]),
-      el('p', { class: 'syllabus', text: 'প্রতিটি বর্ষের GPA সেই বর্ষের ক্রেডিট দিয়ে ভারিত (weighted) করে হিসাব করা হয়।' })
-    ])]));
-
-    var big = el('div', { class: 'big', id: 'cgpaVal' });
-    var meta = el('div', { class: 'meta' }, [el('span', { class: 'chip', id: 'cgpaLetter' }), el('span', { class: 'chip', id: 'cgpaCredits' })]);
-    panel.appendChild(el('div', { class: 'card cgpa-hero', 'aria-live': 'polite' }, [el('div', { class: 'lbl', text: 'আপনার CGPA' }), big, meta]));
-
-    var rows = el('div', { class: 'yrows' });
-    HONOURS.forEach(function (id) { rows.appendChild(cgpaRow(id)); });
-    panel.appendChild(rows);
-
-    panel.appendChild(el('div', { class: 'toolbar' }, [
-      el('button', { class: 'btn primary', type: 'button', text: '⧉ ফলাফল কপি করুন', onclick: copySummary }),
-      el('button', { class: 'btn', type: 'button', text: '⎙ প্রিন্ট', onclick: function () { window.print(); } }),
-      el('button', { class: 'btn danger', type: 'button', text: '↺ সব রিসেট', onclick: function () {
-        if (!confirm('সব বর্ষের সব গ্রেড ও CGPA তথ্য মুছে ফেলবেন?')) return;
-        var keep = { tab: state.tab, bnDigits: state.bnDigits };
-        state = blank(); state.tab = keep.tab; state.bnDigits = keep.bnDigits; save(); renderTabs(); renderPanel(); toast('সব তথ্য মুছে ফেলা হয়েছে');
-      } })
-    ]));
-    panel.appendChild(el('div', { class: 'callout', role: 'note' }, [
-      'মাস্টার্সের GPA আলাদাভাবে “মাস্টার্স” ট্যাবে দেখুন; এটি অনার্স CGPA-তে যোগ হয় না। জাতীয় বিশ্ববিদ্যালয় যে ফলাফল প্রকাশ করে, সেটিই চূড়ান্ত।',
-      el('span', { lang: 'en', text: 'Masters GPA is shown separately and is not part of the Honours CGPA. The official result is whatever NU publishes.' })
-    ]));
-    return panel;
-  }
-
-  function cgpaRow(id) {
-    var y = YEARS[id], cs = state.cgpa[id];
-    var gIn = el('input', { id: 'cg-g-' + id, type: 'text', inputmode: 'decimal', autocomplete: 'off', placeholder: 'যেমন ৩.৫০' });
-    var cIn = el('input', { id: 'cg-c-' + id, type: 'text', inputmode: 'decimal', autocomplete: 'off', placeholder: C.toBangla(y.totalCredits) });
-    var note = el('p', { class: 'note' });
-    var modes = [['auto', 'অটো'], ['manual', 'নিজে লিখুন'], ['off', 'বাদ দিন']];
-    var seg = el('div', { class: 'seg', role: 'group', 'aria-label': y.label + ' GPA উৎস' });
-    modes.forEach(function (m) {
-      seg.appendChild(el('button', { type: 'button', 'aria-pressed': String(cs.mode === m[0]), text: m[1], onclick: function () {
-        cs.mode = m[0]; save();
-        var fresh = cgpaRow(id); row.replaceWith(fresh); updateCGPA();
-        var b = fresh.querySelector('.seg button[aria-pressed="true"]'); if (b) b.focus();
-      } }));
-    });
-    var row = el('div', { class: 'card yrow' }, [
-      el('div', { class: 'yrow-top' }, [el('h3', null, [y.label + ' ', el('span', { class: 'en', style: 'color:var(--muted);font-weight:500;font-size:.85rem', text: '· ' + n(y.totalCredits) + ' ক্রেডিট' })]), seg]),
-      note,
-      el('div', { class: 'inputs' }, [
-        el('div', { class: 'field' }, [el('label', { for: gIn.id, text: 'GPA' }), gIn]),
-        el('div', { class: 'field' }, [el('label', { for: cIn.id, text: 'ক্রেডিট' }), cIn])
-      ])
-    ]);
-    if (cs.mode === 'auto') {
-      var r = yearResult(id);
-      gIn.readOnly = true; cIn.readOnly = true; gIn.placeholder = '—'; cIn.placeholder = '—';
-      gIn.value = r.gpa === null ? '' : f2(r.gpa);
-      cIn.value = r.credits ? n(r.credits) : '';
-      var cc = countedCourses(id);
-      if (r.gpa === null) { note.textContent = 'এখনো কোনো গ্রেড দেওয়া হয়নি — ' + y.label + ' ট্যাবে গ্রেড দিন, অথবা প্রকাশিত GPA “নিজে লিখুন”।'; }
-      else if (r.graded < cc) { note.textContent = 'আংশিক: ' + n(r.graded) + '/' + n(cc) + ' কোর্সের গ্রেড থেকে হিসাব।'; note.className = 'note warn'; }
-      else { note.textContent = 'সব কোর্সের গ্রেড থেকে স্বয়ংক্রিয় হিসাব' + (r.fails ? ' · ' + n(r.fails) + 'টি F' : '') + '।'; }
-    } else if (cs.mode === 'manual') {
-      gIn.value = cs.gpa; cIn.value = cs.credits;
-      note.textContent = 'NU-এর প্রকাশিত GPA জানলে এখানে লিখুন (বাংলা বা ইংরেজি সংখ্যা)। ক্রেডিট খালি রাখলে ' + n(y.totalCredits) + ' ধরা হবে।';
-      function onIn() {
-        cs.gpa = gIn.value; cs.credits = cIn.value; save();
-        var g = C.parseNum(gIn.value), c = C.parseNum(cIn.value);
-        gIn.setAttribute('aria-invalid', String(gIn.value.trim() !== '' && (isNaN(g) || g > 4)));
-        cIn.setAttribute('aria-invalid', String(cIn.value.trim() !== '' && (isNaN(c) || c <= 0)));
-        updateCGPA();
-      }
-      gIn.addEventListener('input', onIn); cIn.addEventListener('input', onIn);
-    } else {
-      gIn.disabled = true; cIn.disabled = true; gIn.placeholder = '—'; cIn.placeholder = '—';
-      note.textContent = 'এই বর্ষ CGPA হিসাবে ধরা হবে না।';
-    }
-    return row;
-  }
-
-  function updateCGPA() {
-    var c = C.computeCGPA(cgpaInputs());
-    var v = document.getElementById('cgpaVal');
-    if (v) {
-      v.textContent = f2(c.cgpa);
-      document.getElementById('cgpaLetter').textContent = 'গ্রেড: ' + (c.letter || '—');
-      document.getElementById('cgpaCredits').textContent = 'মোট ক্রেডিট: ' + n(c.credits);
-    }
-    updateTabSubs(); updateDock();
-  }
-
-  function copySummary() {
-    var lines = ['NU Statistics — GPA/CGPA (unofficial)'];
-    cgpaInputs().forEach(function (y) {
-      lines.push(YEARS[y.id].labelEn + ': ' + (y.gpa === null ? '—' : y.gpa.toFixed(2) + ' (' + y.credits + ' cr)'));
-    });
-    var c = C.computeCGPA(cgpaInputs());
-    lines.push('CGPA: ' + (c.cgpa === null ? '—' : c.cgpa.toFixed(2) + ' ' + c.letter + ' (' + c.credits + ' cr)'));
-    lines.push(location.href.split('#')[0]);
-    var text = lines.join('\n');
-    (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(function () { toast('কপি হয়েছে ✓'); }, function () { prompt('কপি করুন:', text); });
-  }
-
-  // ---------- Scale panel ----------
   function renderScale() {
-    var panel = el('section', { class: 'panel', id: 'panel', role: 'tabpanel', 'aria-labelledby': 'tab-scale' });
-    panel.appendChild(el('div', { class: 'panel-head' }, [el('div', null, [
-      el('h2', null, ['গ্রেডিং পদ্ধতি ', el('span', { class: 'en', text: '· NU Grading Scale' })]),
-      el('p', { class: 'syllabus', text: 'জাতীয় বিশ্ববিদ্যালয়ের অনার্স ও মাস্টার্সে প্রচলিত লেটার গ্রেড ও গ্রেড পয়েন্ট।' })
-    ])]));
     var tb = el('tbody');
     D.grades.forEach(function (g) {
-      tb.appendChild(el('tr', null, [
-        el('td', null, [n(g.min) + (g.min === 0 ? ' – ' + n(g.max) + ' (৪০-এর কম)' : ' – ' + n(g.max))]),
-        el('td', null, [el('span', { class: 'letter' + (g.point === 0 ? ' f' : ''), text: g.letter })]),
-        el('td', { text: n(g.point.toFixed(2)) })
-      ]));
+      tb.appendChild(el('tr', null, [el('td', { class: 'num', text: g.min === 0 ? '< ' + n(40) : n(g.min) + '–' + n(g.max) }),
+        el('td', null, [el('span', { class: 'badge', style: 'background:' + GCOL[g.letter] + ';color:' + (DARKTXT[g.letter] ? '#2a2420' : '#fff') + ';height:24px;font-size:.82rem', text: g.letter })]),
+        el('td', { class: 'num', text: n(g.point.toFixed(2)) })]));
     });
-    panel.appendChild(el('div', { class: 'card table-card' }, [el('table', null, [
-      el('caption', { class: 'visually-hidden', text: 'NU grading scale' }),
-      el('thead', null, [el('tr', null, [el('th', { scope: 'col', text: 'নম্বর (%)' }), el('th', { scope: 'col', text: 'লেটার গ্রেড' }), el('th', { scope: 'col', text: 'গ্রেড পয়েন্ট' })])]),
-      tb
-    ])]));
-    panel.appendChild(el('div', { class: 'card formula' }, [
-      el('h3', { text: 'কীভাবে হিসাব হয়' }),
-      el('p', null, ['বর্ষের GPA = ', el('code', { text: 'Σ (ক্রেডিট × গ্রেড পয়েন্ট) ÷ Σ ক্রেডিট' })]),
-      el('p', null, ['CGPA = ', el('code', { text: 'Σ (বর্ষের GPA × বর্ষের ক্রেডিট) ÷ Σ ক্রেডিট' })]),
-      el('p', { text: '৫০ বা ৭৫ নম্বরের কোর্সে প্রাপ্ত নম্বরকে শতকরায় রূপান্তর করে গ্রেড নির্ধারণ করা হয় (যেমন ৫০-এ ৪০ = ৮০% = A+)। ফলাফল দুই দশমিক পর্যন্ত রাউন্ড করা হয়।' }),
-      el('p', { text: 'F (০.০০) পাওয়া কোর্সও GPA-তে শূন্য পয়েন্ট হিসেবে গণনা হয়; NU-এর নিয়ম অনুযায়ী এমন কোর্সে পরবর্তীতে মানোন্নয়ন/পুনঃপরীক্ষা দিতে হতে পারে।' })
-    ]));
-    panel.appendChild(el('div', { class: 'callout', role: 'note' }, [
-      'এটি একটি অনানুষ্ঠানিক টুল। জাতীয় বিশ্ববিদ্যালয় যে ফলাফল প্রকাশ করে, সেটিই চূড়ান্ত ও অফিসিয়াল।',
-      el('span', { lang: 'en', text: 'Unofficial tool. The official result is whatever National University publishes.' })
-    ]));
-    return panel;
+    return el('div', { class: 'more' }, [el('details', { class: 'card' }, [
+      el('summary', { text: t('scale') }),
+      el('div', { class: 'scale-body' }, [
+        el('table', null, [el('thead', null, [el('tr', null, [el('th', { scope: 'col', text: t('scaleMarks') }), el('th', { scope: 'col', text: t('scaleLetter') }), el('th', { scope: 'col', text: t('scalePoint') })])]), tb]),
+        el('ul', { class: 'how' }, [el('li', { text: t('how1') }), el('li', { text: t('how2') }), el('li', { text: t('how3') })])
+      ])
+    ])]);
   }
 
-  // ---------- Dock (mobile live result) ----------
-  function updateDock() {
-    var dock = document.getElementById('dock');
-    var t = state.tab, html = null;
-    dock.innerHTML = '';
-    if (YEARS[t]) {
-      var r = yearResult(t);
-      if (r.gpa !== null) {
-        dock.appendChild(el('div', { class: 'd-l' }, [el('div', { class: 'd-k', text: YEARS[t].label + ' GPA' }),
-          el('div', { class: 'd-v' }, [f2(r.gpa) + ' ', el('small', { text: (r.letter || '') + ' · ' + n(r.credits) + ' ক্রেডিট' + (r.fails ? ' · ' + n(r.fails) + 'F' : '') })])]));
-        if (t !== 'ms') dock.appendChild(el('button', { type: 'button', text: 'CGPA →', onclick: function () { selectTab('cgpa'); } }));
-        html = true;
-      }
+  // live updates
+  function refresh() {
+    if (!state.session) return;
+    var c = cgpa();
+    var v = document.getElementById('cgVal');
+    if (v) {
+      countUp(v, c.cgpa); v.classList.toggle('dim', c.cgpa === null);
+      var L = document.getElementById('cgLetter'); L.textContent = c.letter || '–'; L.hidden = !c.letter;
+      var used = HON.filter(function (id) { var r = yearResult(id); return r.gpa !== null && r.credits > 0; }).length;
+      document.getElementById('cgSub').textContent = c.cgpa === null ? t('cgpaEmpty') : t('fromYears', { n: n(used), c: n(c.credits) });
     }
-    dock.classList.toggle('show', !!html);
+    ALL.forEach(function (id) { var s = document.querySelector('[data-ygpa="' + id + '"]'); if (s) { var r = yearResult(id); s.textContent = r.gpa === null ? '·' : f2(r.gpa); } });
+    var yid = state.year, r = yearResult(yid), y = C.yearFor(D, state.session, yid);
+    var yv = document.getElementById('yVal');
+    if (yv) {
+      countUp(yv, r.gpa);
+      document.getElementById('yLetter').textContent = r.gpa === null ? t('gpa') : t('gpa') + ' · ' + r.letter;
+      var total = r.manual ? r.credits : r.totalCredits;
+      document.getElementById('yBar').style.width = (total ? Math.min(100, (r.credits / total) * 100) : 0) + '%';
+      var f = document.getElementById('yFacts'); f.innerHTML = '';
+      f.appendChild(el('span', { class: 'num', text: t('creditsOf', { a: n(r.credits), b: n(total || (y ? y.totalCredits : 0)) }) }));
+      if (!r.manual && r.graded) f.appendChild(el('span', { class: r.fails ? 'bad' : 'good', text: r.fails ? t('fails', { n: n(r.fails) }) : t('noFails') }));
+      var mn = document.getElementById('mNote'); if (mn) { mn.textContent = r.needCredits ? t('manualNeedCredits') : t('manualNote'); }
+    }
+    drawBars(); drawMix();
   }
 
-  // ---------- Panel router ----------
-  function renderPanel(keepScroll) {
-    var y = window.scrollY;
-    var host = document.getElementById('panels');
-    host.innerHTML = '';
-    var t = state.tab;
-    if (YEARS[t]) { host.appendChild(renderYear(t)); updateYearSummary(t); }
-    else if (t === 'cgpa') { host.appendChild(renderCGPA()); updateCGPA(); }
-    else { host.appendChild(renderScale()); updateTabSubs(); }
-    updateDock();
-    if (keepScroll) window.scrollTo({ top: y });
-  }
-
-  // ---------- Header controls ----------
-  var digitBtn = document.getElementById('digitToggle');
-  function paintDigitBtn() {
-    digitBtn.textContent = state.bnDigits ? '১২৩' : '123';
-    digitBtn.setAttribute('aria-pressed', String(state.bnDigits));
-    digitBtn.setAttribute('aria-label', state.bnDigits ? 'বাংলা সংখ্যা চালু — ইংরেজি সংখ্যায় দেখান' : 'English digits on — switch to Bangla digits');
-  }
-  digitBtn.addEventListener('click', function () { state.bnDigits = !state.bnDigits; save(); paintDigitBtn(); renderTabs(); renderPanel(true); });
-  paintDigitBtn();
-
-  document.getElementById('themeToggle').addEventListener('click', function () {
-    var root = document.documentElement;
-    var dark = root.dataset.theme ? root.dataset.theme === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
-    root.dataset.theme = dark ? 'light' : 'dark';
-    try { localStorage.setItem('nuStatsCgpa.theme', root.dataset.theme); } catch (e) {}
+  // ---------- header controls ----------
+  document.getElementById('langBtn').addEventListener('click', function () { state.lang = state.lang === 'en' ? 'bn' : 'en'; save(); applyLang(); render(); });
+  document.getElementById('sessionBtn').addEventListener('click', openSessionDialog);
+  document.getElementById('themeBtn').addEventListener('click', function () {
+    var r = document.documentElement, dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    r.dataset.theme = dark ? 'light' : 'dark';
+    try { localStorage.setItem('nuStatsCgpa.theme', r.dataset.theme); } catch (e) {}
   });
+  document.querySelector('.mark').addEventListener('click', function (e) { e.preventDefault(); window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' }); });
 
-  // Deep links: #y2, #cgpa, #scale
-  var hash = location.hash.replace('#', '');
-  if (TAB_DEFS.some(function (t) { return t.id === hash; })) state.tab = hash;
-  window.addEventListener('hashchange', function () {
-    var h = location.hash.replace('#', '');
-    if (TAB_DEFS.some(function (t) { return t.id === h; }) && h !== state.tab) selectTab(h);
-  });
-
-  renderTabs();
-  renderPanel();
+  applyLang();
+  render();
 })();

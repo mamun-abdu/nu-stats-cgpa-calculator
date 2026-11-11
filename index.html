@@ -1,84 +1,77 @@
 <!doctype html>
-<html lang="bn">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>NU পরিসংখ্যান CGPA ক্যালকুলেটর · National University Statistics GPA &amp; CGPA Calculator</title>
-  <meta name="description" content="জাতীয় বিশ্ববিদ্যালয়ের পরিসংখ্যান অনার্স ও মাস্টার্স শিক্ষার্থীদের জন্য GPA ও CGPA ক্যালকুলেটর। সব বর্ষের কোর্স কোড ও ক্রেডিট আগে থেকেই দেওয়া, শুধু গ্রেড বা নম্বর দিন।">
-  <meta name="keywords" content="NU CGPA calculator, National University Statistics, পরিসংখ্যান, CGPA ক্যালকুলেটর, GPA, জাতীয় বিশ্ববিদ্যালয়">
+  <title>NU Statistics CGPA Calculator · পরিসংখ্যান সিজিপিএ ক্যালকুলেটর</title>
+  <meta name="description" content="Free GPA and CGPA calculator for National University Bangladesh Statistics students. Pick your session, and the right NU syllabus loads for every year. Works in English and Bangla.">
   <meta name="author" content="Mamun Abdu">
-  <meta name="theme-color" content="#4f46e5" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#0b1020" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#fbf6ef" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1b1714" media="(prefers-color-scheme: dark)">
   <link rel="canonical" href="https://mamun-abdu.github.io/nu-stats-cgpa-calculator/">
   <meta property="og:type" content="website">
-  <meta property="og:site_name" content="NU Stats CGPA Calculator">
-  <meta property="og:title" content="NU পরিসংখ্যান CGPA ক্যালকুলেটর">
-  <meta property="og:description" content="National University Statistics Honours & Masters: course-wise GPA and CGPA calculator with the official NU grading scale.">
+  <meta property="og:title" content="NU Statistics CGPA Calculator">
+  <meta property="og:description" content="Pick your session, choose your grades, see your GPA and CGPA. Built on National University's official Statistics syllabus.">
   <meta property="og:url" content="https://mamun-abdu.github.io/nu-stats-cgpa-calculator/">
   <meta property="og:image" content="https://mamun-abdu.github.io/nu-stats-cgpa-calculator/og.png">
-  <meta property="og:locale" content="bn_BD">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="NU পরিসংখ্যান CGPA ক্যালকুলেটর">
-  <meta name="twitter:description" content="Course-wise GPA & CGPA calculator for National University Statistics students.">
+  <meta name="twitter:title" content="NU Statistics CGPA Calculator">
+  <meta name="twitter:description" content="GPA & CGPA for National University Statistics students, in English and Bangla.">
   <meta name="twitter:image" content="https://mamun-abdu.github.io/nu-stats-cgpa-calculator/og.png">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%234f46e5'/%3E%3Ctext x='32' y='44' font-size='34' text-anchor='middle' fill='white' font-family='Georgia,serif'%3E%CE%A3%3C/text%3E%3C/svg%3E">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%23d9653b'/%3E%3Cpath d='M18 42 L28 30 L36 36 L47 20' stroke='white' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="preload" href="fonts/DMSans-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.css">
   <script>
-    // Apply saved theme before paint to avoid a flash.
-    try { var t = localStorage.getItem('nuStatsCgpa.theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+    try {
+      var th = localStorage.getItem('nuStatsCgpa.theme'); if (th) document.documentElement.dataset.theme = th;
+      var st = JSON.parse(localStorage.getItem('nuStatsCgpa.v2') || 'null');
+      var lg = st && st.lang || ((navigator.language || '').indexOf('bn') === 0 ? 'bn' : 'en');
+      document.documentElement.lang = lg;
+    } catch (e) {}
   </script>
 </head>
 <body>
-  <a class="skip" href="#main">মূল অংশে যান</a>
+  <a class="skip" href="#main" data-i18n="skip">Skip to content</a>
 
-  <header class="topbar">
-    <div class="wrap topbar-inner">
-      <div class="brand">
-        <span class="logo" aria-hidden="true">Σ</span>
-        <div>
-          <h1>পরিসংখ্যান CGPA ক্যালকুলেটর</h1>
-          <p class="sub">জাতীয় বিশ্ববিদ্যালয় · Statistics Honours &amp; Masters</p>
-        </div>
-      </div>
-      <div class="actions">
-        <button class="icon-btn" id="digitToggle" type="button" aria-pressed="true" title="সংখ্যা: বাংলা / English digits">১২৩</button>
-        <button class="icon-btn" id="themeToggle" type="button" aria-label="থিম পরিবর্তন (Toggle dark mode)" title="ডার্ক / লাইট মোড">
+  <header class="bar">
+    <div class="wrap bar-in">
+      <a class="mark" href="#" aria-label="NU Statistics CGPA">
+        <svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true"><rect width="32" height="32" rx="10" fill="var(--accent)"/><path d="M8 21l5-6 4 3 6-8" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span class="mark-txt"><b data-i18n="brand">Stats CGPA</b><small data-i18n="brandSub">National University</small></span>
+      </a>
+      <div class="bar-actions">
+        <button class="chip-btn" id="sessionBtn" type="button" hidden></button>
+        <button class="chip-btn" id="langBtn" type="button" lang="bn">বাংলা</button>
+        <button class="round-btn" id="themeBtn" type="button" data-i18n-aria="theme" aria-label="Switch theme">
           <svg class="i-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>
-          <svg class="i-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 1.5v2.5M12 20v2.5M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M1.5 12H4M20 12h2.5M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8"/></g></svg>
+          <svg class="i-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></g></svg>
         </button>
       </div>
     </div>
-    <nav class="wrap tabs-wrap" aria-label="বর্ষ নির্বাচন">
-      <div class="tabs" role="tablist" id="tabs"></div>
-    </nav>
   </header>
 
-  <main id="main" class="wrap">
-    <div id="panels"></div>
-  </main>
+  <main id="main" class="wrap"></main>
 
-  <div class="dock" id="dock" aria-live="polite"></div>
-
-  <footer class="wrap footer">
-    <div class="disclaimer" role="note">
-      <strong>দ্রষ্টব্য:</strong> এটি একটি অনানুষ্ঠানিক হিসাব-সহায়ক টুল। জাতীয় বিশ্ববিদ্যালয় (NU) যে ফলাফল প্রকাশ করে, সেটিই চূড়ান্ত ও অফিসিয়াল।
-      <span lang="en">Disclaimer: This is an unofficial helper tool. The official result is whatever National University publishes.</span>
-    </div>
-    <p class="credit">
-      কোর্স তালিকা: <a href="https://www.outliersedgeacademy.com/#cgpa" rel="noopener" target="_blank">Outliers Edge Academy</a>-তে প্রকাশিত NU সিলেবাস অনুযায়ী।
-      তৈরি করেছেন <a href="https://github.com/mamun-abdu" rel="noopener" target="_blank">Mamun Abdu</a> ·
-      <a href="https://github.com/mamun-abdu/nu-stats-cgpa-calculator" rel="noopener" target="_blank">সোর্স কোড (GitHub)</a>
-    </p>
-    <p class="credit small">আপনার দেওয়া তথ্য শুধু আপনার ব্রাউজারেই (localStorage) সংরক্ষিত থাকে, কোথাও পাঠানো হয় না।</p>
+  <footer class="wrap foot">
+    <p class="disc" id="disclaimer"></p>
+    <p class="fine" id="footCredit"></p>
   </footer>
+
+  <dialog id="sessionDialog" aria-labelledby="sdTitle">
+    <form method="dialog" class="dlg">
+      <div class="dlg-head">
+        <h2 id="sdTitle" data-i18n="pickTitleShort">Your session</h2>
+        <button class="round-btn" value="cancel" data-i18n-aria="close" aria-label="Close">✕</button>
+      </div>
+      <div id="sdBody"></div>
+    </form>
+  </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="data.js"></script>
   <script src="calc.js"></script>
+  <script src="i18n.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

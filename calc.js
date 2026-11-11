@@ -113,7 +113,35 @@
     return { cgpa: cgpa, letter: cgpa === null ? null : letterFromGPA(cgpa), credits: credits };
   }
 
+  // ---------- Sessions & syllabus eras ----------
+  var YEAR_IDS = ['y1', 'y2', 'y3', 'y4', 'ms'];
+
+  /** 'old' (2013-14 syllabus) or 'new' (2024-25 syllabus) for a session id like '2023-2024'. */
+  function eraForSession(data, sessionId) {
+    for (var i = 0; i < data.sessions.length; i++) if (data.sessions[i].id === sessionId) return data.sessions[i].era;
+    return null;
+  }
+
+  /** Year syllabus object for a session, or null when that year's syllabus is not published. */
+  function yearFor(data, sessionId, yearId) {
+    var era = eraForSession(data, sessionId);
+    if (!era) return null;
+    return data.eras[era].years[yearId] || null;
+  }
+
+  /** Count graded letters into { 'A+': n, ... } in scale order. */
+  function gradeDistribution(letters) {
+    var out = {};
+    GRADES.forEach(function (g) { out[g.letter] = 0; });
+    letters.forEach(function (l) { if (l in out) out[l]++; });
+    return out;
+  }
+
   var api = {
+    YEAR_IDS: YEAR_IDS,
+    eraForSession: eraForSession,
+    yearFor: yearFor,
+    gradeDistribution: gradeDistribution,
     GRADES: GRADES,
     toAscii: toAscii,
     toBangla: toBangla,

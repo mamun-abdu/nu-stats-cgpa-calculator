@@ -295,4 +295,5 @@ tr:last-child td { border-bottom: 0; }
 }
 .brand > div { min-width: 0; }
 .brand h1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-@media (max-width: 380px) { .brand h1 { font-size: .98rem; } .logo { width: 36px; height: 36px; } }
+@media (max-width: 440px) { .brand h1 { font-size: .92rem; } .brand .sub { font-size: .72rem; } }
+@media (max-width: 380px) { .brand h1 { font-size: .88rem; } .logo { width: 36px; height: 36px; } }

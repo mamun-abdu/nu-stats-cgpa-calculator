@@ -1,0 +1,8 @@
+{
+  "name": "nu-stats-cgpa-calculator",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GPA & CGPA calculator for National University Bangladesh Statistics Honours and Masters students",
+  "scripts": { "test": "node test/calc.test.js" },
+  "license": "MIT"
+}

@@ -1,25 +1,25 @@
-/* NU Statistics CGPA — UI (plain JS, no framework) */
+/* The UI. Plain JS, no framework. */
 (function () {
   'use strict';
   var D = window.NU_DATA, C = window.NUCalc, STR = window.NU_STR;
   var KEY = 'nuStatsCgpa.v2';
   var HON = ['y1', 'y2', 'y3', 'y4'];
-  var ALL = ['y1', 'y2', 'y3', 'y4', 'ms'];
-  var GCOL = { 'A+': '#3f8f5f', 'A': '#5d9b5f', 'A-': '#86a957', 'B+': '#b9ad4a', 'B': '#dba63c', 'B-': '#e5933a', 'C+': '#e07d3b', 'C': '#d8683b', 'D': '#c9583f', 'F': '#c4413a' };
-  var DARKTXT = { 'B+': 1, 'B': 1, 'B-': 1 };
+  var GCOL = { 'A+': '#0f6b62', 'A': '#2b7f5a', 'A-': '#2a7f8f', 'B+': '#33729c', 'B': '#3f63a3', 'B-': '#5257a3', 'C+': '#6a4f9a', 'C': '#7c4a8a', 'D': '#8f4570', 'F': '#b42318' };
+  var DARKTXT = {};
   var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // ---------- state ----------
+  // state
   var state = load();
   function load() {
-    var s = { lang: (navigator.language || '').indexOf('bn') === 0 ? 'bn' : 'en', session: null, year: 'y1', data: {} };
+    var s = { lang: (navigator.language || '').indexOf('bn') === 0 ? 'bn' : 'en', session: null, year: 'y1', level: 'hons', data: {} };
     try {
-      var r = JSON.parse(localStorage.getItem(KEY) || 'null');
-      if (r && typeof r === 'object') {
-        if (r.lang === 'en' || r.lang === 'bn') s.lang = r.lang;
-        if (typeof r.session === 'string' && C.eraForSession(D, r.session)) s.session = r.session;
-        if (ALL.indexOf(r.year) >= 0) s.year = r.year;
-        if (r.data && typeof r.data === 'object') s.data = r.data;
+      var parsed = C.parseImport(localStorage.getItem(KEY) || '');
+      if (parsed.ok) {
+        if (parsed.state.lang) s.lang = parsed.state.lang;
+        if (parsed.state.session && C.eraForSession(D, parsed.state.session)) s.session = parsed.state.session;
+        if (parsed.state.year) s.year = parsed.state.year;
+        s.level = parsed.state.level;
+        s.data = clampAllSel(parsed.state.data);
       }
     } catch (e) {}
     return s;
@@ -30,11 +30,33 @@
     var s = state.data[state.session] || (state.data[state.session] = {});
     var y = s[yid];
     if (!y || typeof y !== 'object') {
-      y = s[yid] = { c: {}, sel: null, custom: [], manual: { on: false, gpa: '', credits: '' } };
+      y = s[yid] = { c: {}, sel: null, manual: { on: false, gpa: '', credits: '' } };
     }
-    if (!y.c) y.c = {}; if (!Array.isArray(y.custom)) y.custom = []; if (!y.manual) y.manual = { on: false, gpa: '', credits: '' };
+    if (!y.c) y.c = {}; if (!y.manual) y.manual = { on: false, gpa: '', credits: '' };
     if (!Array.isArray(y.sel)) y.sel = defaultSel(C.yearFor(D, state.session, yid));
     return y;
+  }
+  // only allow `pick` optionals per group, even if a backup file says otherwise
+  function clampAllSel(data) {
+    Object.keys(data).forEach(function (sid) {
+      if (!C.eraForSession(D, sid)) return;
+      Object.keys(data[sid] || {}).forEach(function (yid) {
+        var ys = data[sid][yid];
+        if (ys && Array.isArray(ys.sel)) ys.sel = clampSel(C.yearFor(D, sid, yid), ys.sel);
+      });
+    });
+    return data;
+  }
+  function clampSel(y, sel) {
+    if (!y) return sel;
+    var count = {}, byCode = {}, out = [];
+    y.courses.forEach(function (c) { if (c.pick) byCode[c.code] = c; });
+    sel.forEach(function (code) {
+      var c = byCode[code]; if (!c || out.indexOf(code) >= 0) return;
+      count[c.section] = (count[c.section] || 0) + 1;
+      if (count[c.section] <= c.pick) out.push(code);
+    });
+    return out;
   }
   function defaultSel(y) {
     var sel = [], seen = {};
@@ -43,7 +65,7 @@
     return sel;
   }
 
-  // ---------- helpers ----------
+  // helpers
   function t(k, v) {
     var s = (STR[state.lang] && STR[state.lang][k]) || STR.en[k] || k;
     if (v) Object.keys(v).forEach(function (x) { s = s.split('{' + x + '}').join(v[x]); });
@@ -84,12 +106,11 @@
     })(t0);
   }
 
-  // ---------- calculations ----------
+  // maths
   function isCounted(yid, c) { return !c.nonCredit && (!c.pick || yst(yid).sel.indexOf(c.code) >= 0); }
   function entries(yid) {
     var y = C.yearFor(D, state.session, yid), s = yst(yid), out = [];
     if (y) y.courses.forEach(function (c) { out.push({ credits: c.credits, letter: (s.c[c.code] || {}).g || '', counted: isCounted(yid, c) }); });
-    s.custom.forEach(function (c) { out.push({ credits: c.credits, letter: c.g || '', counted: true }); });
     return out;
   }
   function yearResult(yid) {
@@ -104,19 +125,26 @@
     }
     return r;
   }
-  function cgpa() { return C.computeCGPA(HON.map(function (id) { var r = yearResult(id); return { gpa: r.gpa, credits: r.credits }; })); }
+  // which degree is on screen; Honours and Masters never mix
+  function lv() { return state.level === 'ms' ? 'ms' : 'hons'; }
+  function curYear() { return lv() === 'ms' ? 'ms' : (HON.indexOf(state.year) >= 0 ? state.year : 'y1'); }
+  function cgpa() {
+    var map = {};
+    C.LEVELS[lv()].forEach(function (id) { var r = yearResult(id); map[id] = { gpa: r.gpa, credits: r.credits }; });
+    return C.levelCgpa(map, lv());
+  }
   function allLetters() {
-    var out = [];
-    ALL.forEach(function (yid) {
+    var byYear = {};
+    C.LEVELS[lv()].forEach(function (yid) {
+      var out = byYear[yid] = [];
       if (yst(yid).manual.on) return;
       var y = C.yearFor(D, state.session, yid), s = yst(yid);
       if (y) y.courses.forEach(function (c) { var g = (s.c[c.code] || {}).g; if (g && isCounted(yid, c)) out.push(g); });
-      s.custom.forEach(function (c) { if (c.g) out.push(c.g); });
     });
-    return out;
+    return C.levelLetters(byYear, lv());
   }
 
-  // ---------- chrome (header, footer, lang) ----------
+  // header, footer, language
   function applyLang() {
     document.documentElement.lang = state.lang;
     document.querySelectorAll('[data-i18n]').forEach(function (e) { e.textContent = t(e.dataset.i18n); });
@@ -129,24 +157,34 @@
     sb.hidden = !state.session;
     if (state.session) { sb.textContent = sessLabel(state.session); sb.setAttribute('aria-label', t('sessionChip', { s: sessLabel(state.session) }) + ' · ' + t('change')); }
     document.getElementById('disclaimer').textContent = t('disclaimer');
+    applyThemeChrome();
     var fc = document.getElementById('footCredit'); fc.innerHTML = '';
     var parts = t('credit').split(/(\{link\}|\{me\}|\{src\})/);
     parts.forEach(function (p) {
       if (p === '{link}') fc.appendChild(el('a', { href: 'https://www.nu.ac.bd/syllabus-honours.php', target: '_blank', rel: 'noopener', text: t('nuSite') }));
-      else if (p === '{me}') fc.appendChild(el('a', { href: 'https://github.com/mamun-abdu', target: '_blank', rel: 'noopener', text: 'Mamun Abdu' }));
+      else if (p === '{me}') fc.appendChild(el('a', { href: 'https://github.com/mamun-abdu', target: '_blank', rel: 'noopener', text: 'Mamun' }));
       else if (p === '{src}') fc.appendChild(el('a', { href: 'https://github.com/mamun-abdu/nu-stats-cgpa-calculator', target: '_blank', rel: 'noopener', text: t('source') }));
       else fc.appendChild(document.createTextNode(p));
     });
   }
 
-  // ---------- session picker ----------
+  // session picker
   function sessionGrid(onPick) {
-    var g = el('div', { class: 'sessions', role: 'group', 'aria-label': t('pickTitleShort') });
-    D.sessions.slice().reverse().forEach(function (s) {
-      g.appendChild(el('button', { type: 'button', class: 'sess' + (s.era === 'new' ? ' new' : ''), 'aria-pressed': String(state.session === s.id),
-        onclick: function () { onPick(s.id); } }, [el('b', { class: 'num', text: sessLabel(s.id) }), el('span', { text: eraLabel(s.era) })]));
+    var wrap = el('div', { class: 'sess-wrap' });
+    C.sessionGroups(D).forEach(function (g) {
+      var hid = 'sg-' + g.era;
+      var block = el('section', { class: 'sess-block', 'aria-labelledby': hid });
+      block.appendChild(el('h2', { id: hid, class: 'sess-head', text: t(g.era === 'old' ? 'oldBlock' : 'newBlock') }));
+      if (g.era === 'new') block.appendChild(el('p', { class: 'sess-note', text: t('newBlockNote') }));
+      var grid = el('div', { class: 'sessions', role: 'group', 'aria-labelledby': hid });
+      g.sessions.slice().reverse().forEach(function (s) {
+        grid.appendChild(el('button', { type: 'button', class: 'sess' + (s.era === 'new' ? ' new' : ''), 'aria-pressed': String(state.session === s.id),
+          onclick: function () { onPick(s.id); } }, [el('b', { class: 'num', text: sessLabel(s.id) }), el('span', { text: eraLabel(s.era) })]));
+      });
+      block.appendChild(grid);
+      wrap.appendChild(block);
     });
-    return g;
+    return wrap;
   }
   function chooseSession(id) {
     var changed = state.session !== id;
@@ -161,7 +199,7 @@
     var cur = body.querySelector('[aria-pressed="true"]'); if (cur) cur.focus();
   }
 
-  // ---------- render ----------
+  // main render
   var main = document.getElementById('main');
   function render() {
     main.innerHTML = '';
@@ -172,30 +210,42 @@
       return;
     }
     var dash = el('div', { class: 'dash fade-in' });
-    var side = el('aside', { class: 'side' }, [renderHero(), renderMix()]);
-    var right = el('section', { 'aria-label': t('gpa') }, [renderYearTabs(), renderYear(state.year), renderScale()]);
+    var hons = lv() === 'hons';
+    var side = el('aside', { class: 'side' }, [renderHero(), renderMix(), hons ? renderPlanner() : null]);
+    var right = el('section', { 'aria-label': t('gpa') }, [hons ? renderYearTabs() : null, renderYear(curYear()), renderActions(), renderScale()]);
     dash.appendChild(side); dash.appendChild(right);
+    main.appendChild(renderLevelSwitch());
     main.appendChild(dash);
+    main.appendChild(renderPrintSheet());
     refresh();
   }
 
-  // Hero: CGPA + bar chart
+  function renderLevelSwitch() {
+    var wrap = el('div', { class: 'levels', role: 'group', 'aria-label': t('programme') });
+    [['hons', 'levelHons'], ['ms', 'levelMs']].forEach(function (p) {
+      wrap.appendChild(el('button', { type: 'button', class: 'lv', id: 'lv-' + p[0], 'aria-pressed': String(lv() === p[0]),
+        onclick: function () { if (lv() === p[0]) return; state.level = p[0]; save(); render(); } }, [t(p[1])]));
+    });
+    return wrap;
+  }
+
+  // CGPA card (Honours also gets the year chart)
   function renderHero() {
     var big = el('div', { class: 'big num', id: 'cgVal', 'aria-live': 'polite' });
     return el('div', { class: 'card hero' }, [
       el('div', { class: 'hero-top' }, [
-        el('div', null, [el('div', { class: 'eyebrow', text: t('yourCgpa') }), big]),
+        el('div', null, [el('div', { class: 'eyebrow', text: t(lv() === 'ms' ? 'yourMsCgpa' : 'yourCgpa') }), big]),
         el('span', { class: 'badge', id: 'cgLetter' })
       ]),
       el('p', { class: 'sub', id: 'cgSub' }),
-      el('div', { class: 'chart' }, [el('h3', { text: t('gpaByYear') }), el('div', { id: 'bars' })])
+      lv() === 'hons' ? el('div', { class: 'chart' }, [el('h3', { text: t('gpaByYear') }), el('div', { id: 'bars' })]) : null
     ]);
   }
   function drawBars() {
     var host = document.getElementById('bars'); if (!host) return;
     var W = 300, H = 140, pad = 22, base = H - 22, top = 18;
     var svg = sv('svg', { viewBox: '0 0 ' + W + ' ' + H, width: '100%', class: 'bars', role: 'img' });
-    var labels = [], ids = ALL.filter(function (id) { return id !== 'ms' || yearResult('ms').gpa !== null; });
+    var labels = [], ids = HON;
     var bw = Math.min(38, (W - pad * 2) / ids.length - 14), step = (W - pad * 2) / ids.length;
     svg.appendChild(sv('line', { x1: pad - 6, x2: W - pad + 6, y1: base, y2: base }));
     ids.forEach(function (id, i) {
@@ -203,7 +253,7 @@
       var h = r.gpa === null ? 0 : (r.gpa / 4) * (base - top);
       if (r.gpa === null) svg.appendChild(sv('rect', { x: x, y: top, width: bw, height: base - top, rx: 8, class: 'ghost' }));
       else {
-        svg.appendChild(sv('rect', { x: x, y: base - h, width: bw, height: h, rx: 8, class: 'b' + (id === 'ms' ? ' ms' : '') }));
+        svg.appendChild(sv('rect', { x: x, y: base - h, width: bw, height: h, rx: 8, class: 'b' }));
         var v = sv('text', { x: x + bw / 2, y: base - h - 5, 'text-anchor': 'middle', class: 'v' }); v.textContent = f2(r.gpa); svg.appendChild(v);
       }
       var lt = sv('text', { x: x + bw / 2, y: H - 6, 'text-anchor': 'middle' }); lt.textContent = t(id + 's'); svg.appendChild(lt);
@@ -213,7 +263,6 @@
     host.innerHTML = ''; host.appendChild(svg);
   }
 
-  // Grade mix donut
   function renderMix() {
     return el('div', { class: 'card mix' }, [el('h3', { text: t('gradeMix') }), el('div', { class: 'mix-body', id: 'mixBody' })]);
   }
@@ -239,19 +288,19 @@
     host.innerHTML = ''; host.appendChild(svg); host.appendChild(lg);
   }
 
-  // Year tabs
   function renderYearTabs() {
     var bar = el('div', { class: 'years', role: 'tablist', 'aria-label': t('gpa') });
-    ALL.forEach(function (id) {
+    HON.forEach(function (id) {
       var y = C.yearFor(D, state.session, id);
-      bar.appendChild(el('button', { type: 'button', role: 'tab', class: 'yt', id: 'yt-' + id, 'aria-selected': String(state.year === id), 'aria-controls': 'yearPanel', tabindex: state.year === id ? '0' : '-1',
-        onclick: function () { selectYear(id); } }, [el('span', null, [t(id + 's'), y ? null : el('span', { class: 'dot', title: t('notPubTitle'), 'aria-label': t('notPubTitle') })]), el('small', { class: 'num', 'data-ygpa': id })]));
+      var pub = !!y;
+      bar.appendChild(el('button', { type: 'button', role: 'tab', class: 'yt' + (pub ? '' : ' unpub'), id: 'yt-' + id, 'aria-selected': String(state.year === id), 'aria-controls': 'yearPanel', tabindex: state.year === id ? '0' : '-1', title: pub ? '' : t('notPubYet'),
+        onclick: function () { selectYear(id); } }, [el('span', null, [t(id + 's'), pub ? null : el('span', { class: 'dot', title: t('notPubYet'), 'aria-label': t('notPubYet') })]), el('small', { class: 'num', 'data-ygpa': id })]));
     });
     bar.addEventListener('keydown', function (e) {
-      var i = ALL.indexOf(state.year), j = i;
-      if (e.key === 'ArrowRight') j = (i + 1) % ALL.length; else if (e.key === 'ArrowLeft') j = (i - 1 + ALL.length) % ALL.length;
-      else if (e.key === 'Home') j = 0; else if (e.key === 'End') j = ALL.length - 1; else return;
-      e.preventDefault(); selectYear(ALL[j], true);
+      var i = HON.indexOf(curYear()), j = i;
+      if (e.key === 'ArrowRight') j = (i + 1) % HON.length; else if (e.key === 'ArrowLeft') j = (i - 1 + HON.length) % HON.length;
+      else if (e.key === 'Home') j = 0; else if (e.key === 'End') j = HON.length - 1; else return;
+      e.preventDefault(); selectYear(HON[j], true);
     });
     return bar;
   }
@@ -271,12 +320,13 @@
   }
   function paintSel(s) {
     var v = s.value; s.classList.toggle('set', !!v);
-    s.style.background = v ? GCOL[v] : ''; s.style.color = v ? (DARKTXT[v] ? '#2a2420' : '#fff') : '';
+    s.style.background = v ? GCOL[v] : ''; s.style.color = v ? (DARKTXT[v] ? '#16212a' : '#fff') : '';
   }
 
   function renderYear(yid) {
     var y = C.yearFor(D, state.session, yid), s = yst(yid), era = C.eraForSession(D, state.session);
-    var card = el('div', { class: 'card year', id: 'yearPanel', role: 'tabpanel', 'aria-labelledby': 'yt-' + yid });
+    var card = yid === 'ms' ? el('div', { class: 'card year', id: 'yearPanel', 'aria-label': t('levelMs') })
+      : el('div', { class: 'card year', id: 'yearPanel', role: 'tabpanel', 'aria-labelledby': 'yt-' + yid });
     var yn = el('div', { class: 'n num', id: 'yVal' });
     card.appendChild(el('div', { class: 'yh' }, [
       el('div', null, [
@@ -288,7 +338,7 @@
     card.appendChild(el('div', { class: 'meter', 'aria-hidden': 'true' }, [el('span', { id: 'yBar' })]));
     card.appendChild(el('div', { class: 'facts', id: 'yFacts' }));
 
-    // manual GPA toggle
+    // "I already know my GPA"
     var cb = el('input', { type: 'checkbox', checked: s.manual.on, id: 'man-' + yid });
     card.appendChild(el('label', { class: 'switch', for: 'man-' + yid }, [cb, el('span', { class: 'tr', 'aria-hidden': 'true' }), el('span', { text: t('manualToggle') })]));
     var mg = el('input', { id: 'mg-' + yid, type: 'text', inputmode: 'decimal', autocomplete: 'off', value: s.manual.gpa, placeholder: n('3.50') });
@@ -312,17 +362,6 @@
     mg.addEventListener('input', onMan); mc.addEventListener('input', onMan);
 
     if (y) {
-      var qs = gradeSelect('', t('quickFill')); qs.className = 'ghost-btn'; qs.style.cssText = ''; qs.firstChild.textContent = t('quickFill');
-      qs.addEventListener('change', function () {
-        var g = qs.value; if (!g) return;
-        y.courses.forEach(function (c) { if (isCounted(yid, c) && !(s.c[c.code] || {}).g) s.c[c.code] = { g: g, m: '' }; });
-        save(); selectYear(yid); toast(t('filled', { g: g }));
-      });
-      body.appendChild(el('div', { class: 'tools' }, [qs, el('button', { type: 'button', class: 'ghost-btn', text: t('reset'), onclick: function () {
-        if (!confirm(t('resetQ', { y: t(yid) }))) return;
-        state.data[state.session][yid] = null; save(); selectYear(yid); toast(t('cleared'));
-      } })]));
-
       var groups = [], idx = {};
       y.courses.forEach(function (c) { var k = c.section || ''; if (!(k in idx)) { idx[k] = groups.length; groups.push({ key: k, pick: c.pick || 0, courses: [] }); } groups[idx[k]].courses.push(c); });
       groups.forEach(function (g) {
@@ -341,51 +380,19 @@
     } else {
       body.appendChild(el('div', { class: 'empty' }, [
         el('div', { html: '<svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true"><rect x="12" y="8" width="40" height="48" rx="8" fill="var(--soft)" stroke="var(--line)" stroke-width="2"/><path d="M22 22h20M22 30h20M22 38h12" stroke="var(--line)" stroke-width="3" stroke-linecap="round"/><circle cx="46" cy="46" r="10" fill="var(--sun)"/><path d="M46 41v6M46 50.5v.5" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>' }),
-        el('h3', { text: t('notPubTitle') }),
-        el('p', { text: t('notPubText', { y: t(yid) }) })
+        el('h3', { text: t('notPubYet') }),
+        el('p', { text: t('notPubText', { y: t(yid) }) }),
+        el('p', { class: 'fallback', text: t('unofficialFallback') })
       ]));
     }
 
-    // custom courses
-    var cl = el('div', { class: 'list', role: 'list' });
-    function drawCustom() {
-      cl.innerHTML = '';
-      s.custom.forEach(function (c, i) {
-        var sel = gradeSelect(c.g || '', t('gradeFor', { c: c.name }));
-        sel.addEventListener('change', function () { c.g = sel.value; paintSel(sel); save(); refresh(); });
-        cl.appendChild(el('div', { class: 'row', role: 'listitem' }, [
-          el('div', null, [el('div', { class: 'r-name', text: c.name }), el('div', { class: 'r-meta num', text: n(c.credits) + ' ' + t('cr') })]),
-          el('div', { class: 'ctl' }, [sel, el('button', { type: 'button', class: 'xbtn', 'aria-label': t('remove', { c: c.name }), text: '×', onclick: function () { s.custom.splice(i, 1); save(); drawCustom(); refresh(); } })])
-        ]));
-      });
-      cl.hidden = !s.custom.length;
-    }
-    drawCustom();
-    var an = el('input', { id: 'an-' + yid, type: 'text', autocomplete: 'off', maxlength: '80' });
-    var ac = el('input', { id: 'ac-' + yid, type: 'text', inputmode: 'decimal', autocomplete: 'off', placeholder: n('4') });
-    var ag = gradeSelect('', t('gradePh')); ag.id = 'ag-' + yid; ag.className = 'gsel'; ag.style.width = '100%';
-    var form = el('form', { class: 'add', novalidate: true }, [
-      el('div', { class: 'field' }, [el('label', { for: an.id, text: t('courseName') }), an]),
-      el('div', { class: 'field' }, [el('label', { for: ac.id, text: t('creditsLbl') }), ac]),
-      el('div', { class: 'field' }, [el('label', { for: ag.id, text: t('gradePh') }), ag]),
-      el('button', { class: 'btn go', type: 'submit', text: t('add') })
-    ]);
-    ag.addEventListener('change', function () { paintSel(ag); });
-    form.addEventListener('submit', function (e) {
-      e.preventDefault();
-      var name = an.value.trim(), cr = C.parseNum(ac.value);
-      if (!name || isNaN(cr) || cr <= 0 || cr > 20) { toast(t('addErr')); (name ? ac : an).focus(); return; }
-      s.custom.push({ name: name, credits: cr, g: ag.value }); save();
-      an.value = ''; ac.value = ''; ag.value = ''; paintSel(ag); drawCustom(); refresh(); an.focus();
-    });
-    body.appendChild(el('div', { class: 'group' }, [el('div', { class: 'gh' }, [el('h3', { text: y ? t('myCourses') : t('addCourse') })]), cl, form]));
     card.appendChild(body);
     if (yid === 'ms') card.appendChild(el('p', { class: 'sub', text: t('msNote') }));
     return card;
   }
 
   function courseRow(yid, c, g, groupUpdate) {
-    var s = yst(yid), e = s.c[c.code] || {}, full = c.marks || 100;
+    var s = yst(yid), e = s.c[c.code] || {};
     var counted = isCounted(yid, c);
     var meta = el('div', { class: 'r-meta num' }, [el('span', { text: c.code }), c.nonCredit ? null : el('span', { text: n(c.credits) + ' ' + t('cr') }), c.marks ? el('span', { text: n(c.marks) + ' ' + t('marks') }) : null]);
     var row = el('div', { class: 'row' + (counted || c.nonCredit ? '' : ' off'), role: 'listitem' });
@@ -402,18 +409,9 @@
       meta.appendChild(el('label', null, [cb, t('took')]));
     }
     var uid = yid + '-' + c.code;
-    var mk = el('input', { class: 'in num', id: 'm-' + uid, type: 'text', inputmode: 'decimal', autocomplete: 'off', placeholder: t('marksPh'), value: e.m || '', 'aria-label': c.name + ' · ' + t('marksOf', { m: n(full) }), title: t('marksOf', { m: n(full) }) });
     var sel = gradeSelect(e.g || '', t('gradeFor', { c: c.name })); sel.id = 'g-' + uid;
-    mk.addEventListener('input', function () {
-      var raw = mk.value, v = C.parseNum(raw), gr = raw.trim() === '' ? null : C.gradeFromMarks(v, full);
-      var bad = raw.trim() !== '' && !gr;
-      mk.setAttribute('aria-invalid', String(bad)); mk.title = bad ? t('marksErr', { m: n(full) }) : t('marksOf', { m: n(full) });
-      s.c[c.code] = { g: gr ? gr.letter : '', m: raw }; sel.value = gr ? gr.letter : ''; paintSel(sel);
-      save(); refresh();
-    });
-    mk.addEventListener('blur', function () { if (mk.getAttribute('aria-invalid') === 'true') toast(t('marksErr', { m: n(full) })); });
-    sel.addEventListener('change', function () { s.c[c.code] = { g: sel.value, m: '' }; mk.value = ''; mk.removeAttribute('aria-invalid'); paintSel(sel); save(); refresh(); });
-    row.appendChild(el('div', { class: 'ctl' }, [mk, sel]));
+    sel.addEventListener('change', function () { s.c[c.code] = { g: sel.value }; paintSel(sel); save(); refresh(); });
+    row.appendChild(el('div', { class: 'ctl' }, [sel]));
     return row;
   }
 
@@ -421,7 +419,7 @@
     var tb = el('tbody');
     D.grades.forEach(function (g) {
       tb.appendChild(el('tr', null, [el('td', { class: 'num', text: g.min === 0 ? '< ' + n(40) : n(g.min) + '–' + n(g.max) }),
-        el('td', null, [el('span', { class: 'badge', style: 'background:' + GCOL[g.letter] + ';color:' + (DARKTXT[g.letter] ? '#2a2420' : '#fff') + ';height:24px;font-size:.82rem', text: g.letter })]),
+        el('td', null, [el('span', { class: 'badge', style: 'background:' + GCOL[g.letter] + ';color:' + (DARKTXT[g.letter] ? '#16212a' : '#fff') + ';height:24px;font-size:.82rem', text: g.letter })]),
         el('td', { class: 'num', text: n(g.point.toFixed(2)) })]));
     });
     return el('div', { class: 'more' }, [el('details', { class: 'card' }, [
@@ -433,7 +431,6 @@
     ])]);
   }
 
-  // live updates
   function refresh() {
     if (!state.session) return;
     var c = cgpa();
@@ -442,10 +439,12 @@
       countUp(v, c.cgpa); v.classList.toggle('dim', c.cgpa === null);
       var L = document.getElementById('cgLetter'); L.textContent = c.letter || '–'; L.hidden = !c.letter;
       var used = HON.filter(function (id) { var r = yearResult(id); return r.gpa !== null && r.credits > 0; }).length;
-      document.getElementById('cgSub').textContent = c.cgpa === null ? t('cgpaEmpty') : t('fromYears', { n: n(used), c: n(c.credits) });
+      var sub = lv() === 'ms' ? (c.cgpa === null ? t('msEmpty') : t('msSub', { c: n(c.credits) }))
+        : (c.cgpa === null ? t('cgpaEmpty') : t('fromYears', { n: n(used), c: n(c.credits) }));
+      document.getElementById('cgSub').textContent = sub;
     }
-    ALL.forEach(function (id) { var s = document.querySelector('[data-ygpa="' + id + '"]'); if (s) { var r = yearResult(id); s.textContent = r.gpa === null ? '·' : f2(r.gpa); } });
-    var yid = state.year, r = yearResult(yid), y = C.yearFor(D, state.session, yid);
+    HON.forEach(function (id) { var s = document.querySelector('[data-ygpa="' + id + '"]'); if (s) { var r = yearResult(id); s.textContent = r.gpa === null ? '·' : f2(r.gpa); } });
+    var yid = curYear(), r = yearResult(yid), y = C.yearFor(D, state.session, yid);
     var yv = document.getElementById('yVal');
     if (yv) {
       countUp(yv, r.gpa);
@@ -453,23 +452,309 @@
       var total = r.manual ? r.credits : r.totalCredits;
       document.getElementById('yBar').style.width = (total ? Math.min(100, (r.credits / total) * 100) : 0) + '%';
       var f = document.getElementById('yFacts'); f.innerHTML = '';
-      f.appendChild(el('span', { class: 'num', text: t('creditsOf', { a: n(r.credits), b: n(total || (y ? y.totalCredits : 0)) }) }));
+      if (y || r.credits) f.appendChild(el('span', { class: 'num', text: t('creditsOf', { a: n(r.credits), b: n(total || (y ? y.totalCredits : 0)) }) }));
+      var tot = y ? C.officialYearTotals(y) : null;
+      if (tot && tot.creditMarks != null) {
+        if (tot.nonCredit.length) {
+          var nc = tot.nonCredit[0];
+          f.appendChild(el('span', { class: 'num', text: t('marksPlusNc', { m: n(tot.creditMarks), name: nc.name, nm: n(nc.marks) }) }));
+        } else {
+          f.appendChild(el('span', { class: 'num', text: t('marksTotal', { m: n(tot.creditMarks) }) }));
+        }
+      }
       if (!r.manual && r.graded) f.appendChild(el('span', { class: r.fails ? 'bad' : 'good', text: r.fails ? t('fails', { n: n(r.fails) }) : t('noFails') }));
       var mn = document.getElementById('mNote'); if (mn) { mn.textContent = r.needCredits ? t('manualNeedCredits') : t('manualNote'); }
     }
-    drawBars(); drawMix();
+    drawBars(); drawMix(); updatePlanner(); updatePrintSheet();
   }
 
-  // ---------- header controls ----------
+  // planner, export, backup
+  var plan = { target: '', remaining: '' };
+
+  function yearResultsMap() {
+    var out = {};
+    HON.forEach(function (id) { out[id] = yearResult(id); });
+    return out;
+  }
+  function autoRemain() { return C.remainingHonours(D, state.session, yearResultsMap()); }
+
+  function renderPlanner() {
+    var card = el('div', { class: 'card planner' }, [
+      el('h3', { text: t('targetTitle') }),
+      el('p', { class: 'sub', id: 'planEarned' }),
+      el('p', { class: 'sub', id: 'planHint' }),
+      el('div', { class: 'plan-fields' }, [
+        el('div', { class: 'field' }, [el('label', { for: 'planTarget', text: t('targetLbl') }), el('input', { id: 'planTarget', type: 'text', inputmode: 'decimal', autocomplete: 'off', value: plan.target, placeholder: n('3.75') })]),
+        el('div', { class: 'field' }, [el('label', { for: 'planRemain', text: t('remainingLbl') }), el('input', { id: 'planRemain', type: 'text', inputmode: 'decimal', autocomplete: 'off', value: plan.remaining })])
+      ]),
+      el('p', { class: 'plan-out', id: 'planOut', 'aria-live': 'polite' })
+    ]);
+    card.querySelector('#planTarget').addEventListener('input', function (e) { plan.target = e.target.value; updatePlanner(); });
+    card.querySelector('#planRemain').addEventListener('input', function (e) { plan.remaining = e.target.value; updatePlanner(); });
+    return card;
+  }
+  function updatePlanner() {
+    var out = document.getElementById('planOut'); if (!out) return;
+    var remInfo = autoRemain();
+    var c = cgpa();
+    var earnedEl = document.getElementById('planEarned');
+    var hint = document.getElementById('planHint');
+    var remainInput = document.getElementById('planRemain');
+    if (earnedEl) earnedEl.textContent = t('earnedLbl') + ': ' + (c.cgpa === null ? '–' : (f2(c.cgpa) + ' · ' + n(remInfo.earned) + ' ' + t('credits')));
+    if (remainInput && !plan.remaining) remainInput.placeholder = remInfo.unknown ? '' : (remInfo.remaining ? n(remInfo.remaining) : n('40'));
+    if (hint) hint.textContent = remInfo.unknown ? t('remainingUnknown') : (remInfo.remaining ? t('remainingHint', { n: n(remInfo.remaining) }) : '');
+    var target = C.parseNum(plan.target);
+    var remain = plan.remaining.trim() === '' ? remInfo.remaining : C.parseNum(plan.remaining);
+    if (plan.target.trim() === '') { out.textContent = ''; return; }
+    // 3rd/4th year aren't published for new sessions, so ask instead of guessing
+    if (remInfo.unknown && plan.remaining.trim() === '') { out.textContent = t('remainingUnknown'); return; }
+    if (c.cgpa === null && remInfo.earned === 0) { out.textContent = t('targetNeedCurrent'); return; }
+    var current = c.cgpa === null ? 0 : c.cgpa;
+    var earned = remInfo.earned;
+    var r = C.requiredGpa(current, earned, remain, target);
+    if (!r.ok || r.error === 'invalid') { out.textContent = t('targetInvalid'); return; }
+    if (r.error === 'no-remaining') { out.textContent = t('targetNoRemain'); return; }
+    if (r.alreadyMet) { out.textContent = t('targetAlready'); return; }
+    if (!r.possible) { out.textContent = t('targetImpossible', { t: f2(C.round2(target)), g: f2(r.required) }); return; }
+    out.textContent = t('targetNeed', { g: f2(r.required), c: n(remain) });
+  }
+
+  function renderActions() {
+    return el('div', { class: 'actions', 'aria-label': t('actions') }, [
+      el('button', { type: 'button', class: 'ghost-btn', text: t('exportPng'), onclick: exportPng }),
+      el('button', { type: 'button', class: 'ghost-btn', text: t('exportPdf'), onclick: function () { window.print(); } }),
+      el('button', { type: 'button', class: 'ghost-btn', text: t('exportJson'), onclick: exportJson }),
+      el('button', { type: 'button', class: 'ghost-btn', text: t('importJson'), onclick: function () { document.getElementById('importFile').click(); } }),
+      el('button', { type: 'button', class: 'ghost-btn danger', text: t('clearAll'), onclick: clearAllData })
+    ]);
+  }
+
+  function resultRows() {
+    var rows = [];
+    C.LEVELS[lv()].forEach(function (id) {
+      var y = C.yearFor(D, state.session, id), r = yearResult(id);
+      if (!y && r.gpa === null && !yst(id).manual.on) return;
+      rows.push({ id: id, label: t(id), gpa: r.gpa, letter: r.letter, credits: r.credits, total: r.manual ? r.credits : r.totalCredits, published: !!y });
+    });
+    return rows;
+  }
+
+  function renderPrintSheet() {
+    return el('section', { class: 'print-sheet', id: 'printSheet', 'aria-hidden': 'true' });
+  }
+  function updatePrintSheet() {
+    var host = document.getElementById('printSheet'); if (!host) return;
+    host.innerHTML = '';
+    var c = cgpa();
+    host.appendChild(el('h1', { text: t('printTitle') }));
+    host.appendChild(el('p', { text: t('sessionChip', { s: sessLabel(state.session) }) + ' · ' + t(lv() === 'ms' ? 'levelMs' : 'levelHons') + ' · ' + todayLabel() }));
+    host.appendChild(el('p', { class: 'print-cg', text: t(lv() === 'ms' ? 'yourMsCgpa' : 'yourCgpa') + ' ' + (c.cgpa === null ? '–' : c.cgpa.toFixed(2)) + (c.letter ? ' · ' + c.letter : '') }));
+    var table = el('table', null, [el('thead', null, [el('tr', null, [el('th', { text: t('gpaByYear') }), el('th', { text: t('gpa') }), el('th', { text: t('credits') }), el('th', { text: t('scaleLetter') })])])]);
+    var tb = el('tbody');
+    resultRows().forEach(function (row) {
+      tb.appendChild(el('tr', null, [
+        el('td', { text: row.label + (row.published ? '' : ' · ' + t('notPubTitle')) }),
+        el('td', { class: 'num', text: row.gpa === null ? '–' : row.gpa.toFixed(2) }),
+        el('td', { class: 'num', text: row.credits ? String(row.credits) : '–' }),
+        el('td', { text: row.letter || '–' })
+      ]));
+    });
+    table.appendChild(tb);
+    host.appendChild(table);
+    host.appendChild(el('p', { class: 'print-disc', text: t('disclaimer') }));
+  }
+
+  function todayLabel() {
+    try {
+      return new Date().toLocaleDateString(state.lang === 'bn' ? 'bn-BD' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Dhaka' });
+    } catch (e) { return new Date().toISOString().slice(0, 10); }
+  }
+  function fileStamp() {
+    var d = new Date();
+    function z(n) { return (n < 10 ? '0' : '') + n; }
+    return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate());
+  }
+  function downloadBlob(blob, name) {
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1500);
+  }
+
+  function exportJson() {
+    var payload = C.exportPayload(state);
+    downloadBlob(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }), 'stats-cgpa-' + (state.session || 'backup') + '-' + fileStamp() + '.json');
+    toast(t('exportJson'));
+  }
+  function importFromFile(file) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      var parsed = C.parseImport(String(reader.result || ''));
+      if (!parsed.ok) { toast(t('importErr')); return; }
+      if (Object.keys(state.data || {}).length && !confirm(t('importQ'))) return;
+      if (parsed.state.lang) state.lang = parsed.state.lang;
+      if (parsed.state.session && C.eraForSession(D, parsed.state.session)) state.session = parsed.state.session;
+      if (parsed.state.year) state.year = parsed.state.year;
+      state.level = parsed.state.level;
+      state.data = clampAllSel(parsed.state.data);
+      save(); applyLang(); render(); toast(t('imported'));
+    };
+    reader.readAsText(file);
+  }
+
+  function clearAllData() {
+    if (!confirm(t('clearAllQ'))) return;
+    try { localStorage.removeItem(KEY); localStorage.removeItem('nuStatsCgpa.theme'); } catch (e) {}
+    delete document.documentElement.dataset.theme;
+    state = { lang: state.lang, session: null, year: 'y1', level: 'hons', data: {} };
+    plan.target = ''; plan.remaining = '';
+    applyThemeChrome(); applyLang(); render(); toast(t('clearedAll'));
+  }
+
+  function exportPng() {
+    var go = function () { drawResultCard(); };
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(go, go);
+    else go();
+  }
+  function drawResultCard() {
+    var c = cgpa();
+    var rows = resultRows();
+    var w = 900, pad = 56;
+    var h = pad + 340 + rows.length * 52 + 90;
+    var canvas = document.createElement('canvas');
+    canvas.width = w * 2; canvas.height = h * 2;
+    var ctx = canvas.getContext('2d');
+    ctx.scale(2, 2);
+    var font = getComputedStyle(document.documentElement).getPropertyValue('--font').trim() || 'sans-serif';
+    ctx.fillStyle = '#f5f7f8';
+    ctx.fillRect(0, 0, w, h);
+    rounded(ctx, 24, 24, w - 48, h - 48, 28, '#ffffff');
+    ctx.fillStyle = '#0f766e';
+    rounded(ctx, pad, pad, 48, 48, 14, '#0f766e');
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 3.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(pad + 13, pad + 32); ctx.lineTo(pad + 21, pad + 22); ctx.lineTo(pad + 28, pad + 27); ctx.lineTo(pad + 38, pad + 14); ctx.stroke();
+    ctx.fillStyle = '#16212a';
+    ctx.font = '600 28px ' + font;
+    ctx.fillText(t('brand'), pad + 64, pad + 26);
+    ctx.font = '400 15px ' + font;
+    ctx.fillStyle = '#55636c';
+    ctx.fillText(t('brandSub'), pad + 64, pad + 48);
+    ctx.font = '600 16px ' + font;
+    ctx.fillStyle = '#55636c';
+    ctx.fillText(t('sessionChip', { s: sessLabel(state.session) }) + '  ·  ' + t(lv() === 'ms' ? 'levelMs' : 'levelHons') + '  ·  ' + todayLabel(), pad, pad + 92);
+    ctx.fillStyle = '#55636c';
+    ctx.font = '600 14px ' + font;
+    ctx.fillText(t(lv() === 'ms' ? 'yourMsCgpa' : 'yourCgpa'), pad, pad + 140);
+    ctx.fillStyle = '#16212a';
+    ctx.font = '600 86px ' + font;
+    ctx.fillText(c.cgpa === null ? '–' : c.cgpa.toFixed(2), pad, pad + 230);
+    if (c.letter) {
+      var bx = pad + ctx.measureText(c.cgpa === null ? '–' : c.cgpa.toFixed(2)).width + 24;
+      rounded(ctx, bx, pad + 175, 64, 36, 10, '#e1f1ef');
+      ctx.fillStyle = '#0f766e';
+      ctx.font = '600 18px ' + font;
+      ctx.textAlign = 'center';
+      ctx.fillText(c.letter, bx + 32, pad + 200);
+      ctx.textAlign = 'left';
+    }
+    ctx.fillStyle = '#55636c';
+    ctx.font = '400 15px ' + font;
+    var sub = document.getElementById('cgSub');
+    ctx.fillText(sub ? sub.textContent : '', pad, pad + 262);
+
+    var y0 = pad + 300;
+    ctx.strokeStyle = '#dde4e6'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(pad, y0); ctx.lineTo(w - pad, y0); ctx.stroke();
+    ctx.fillStyle = '#55636c';
+    ctx.font = '600 13px ' + font;
+    ctx.fillText(t('gpaByYear'), pad, y0 + 28);
+    ctx.fillText(t('gpa'), pad + 280, y0 + 28);
+    ctx.fillText(t('credits'), pad + 430, y0 + 28);
+    ctx.fillText(t('scaleLetter'), pad + 600, y0 + 28);
+    rows.forEach(function (row, i) {
+      var yy = y0 + 64 + i * 48;
+      ctx.fillStyle = '#16212a';
+      ctx.font = '600 18px ' + font;
+      ctx.fillText(row.label, pad, yy);
+      ctx.fillText(row.gpa === null ? '–' : row.gpa.toFixed(2), pad + 280, yy);
+      ctx.fillText(row.credits ? String(row.credits) : '–', pad + 430, yy);
+      ctx.fillText(row.letter || '–', pad + 600, yy);
+    });
+    ctx.fillStyle = '#55636c';
+    ctx.font = '400 13px ' + font;
+    wrapText(ctx, t('disclaimer'), pad, h - pad - 36, w - pad * 2, 20);
+    ctx.fillText(t('madeBy'), pad, h - pad + 4);
+    canvas.toBlob(function (blob) {
+      if (!blob) return;
+      downloadBlob(blob, 'stats-cgpa-' + (lv() === 'ms' ? 'masters-' : '') + (state.session || 'result') + '-' + fileStamp() + '.png');
+      toast(t('exportPng'));
+    }, 'image/png');
+  }
+  function rounded(ctx, x, y, w, h, r, fill) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+    ctx.fillStyle = fill;
+    ctx.fill();
+  }
+  function wrapText(ctx, text, x, y, max, lh) {
+    var words = text.split(' '), line = '', yy = y;
+    words.forEach(function (word, i) {
+      var test = line ? line + ' ' + word : word;
+      if (ctx.measureText(test).width > max && line) { ctx.fillText(line, x, yy); line = word; yy += lh; }
+      else line = test;
+      if (i === words.length - 1) ctx.fillText(line, x, yy);
+    });
+  }
+
+  function isDark() {
+    var th = document.documentElement.dataset.theme;
+    if (th) return th === 'dark';
+    return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  }
+  function applyThemeChrome() {
+    var dark = isDark();
+    var btn = document.getElementById('themeBtn');
+    if (btn) {
+      btn.setAttribute('aria-pressed', String(dark));
+      btn.setAttribute('aria-label', t('theme'));
+    }
+    var color = dark ? '#0f1518' : '#f5f7f8';
+    document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) { m.setAttribute('content', color); });
+  }
+
+
+  // header buttons
   document.getElementById('langBtn').addEventListener('click', function () { state.lang = state.lang === 'en' ? 'bn' : 'en'; save(); applyLang(); render(); });
   document.getElementById('sessionBtn').addEventListener('click', openSessionDialog);
   document.getElementById('themeBtn').addEventListener('click', function () {
-    var r = document.documentElement, dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
-    r.dataset.theme = dark ? 'light' : 'dark';
-    try { localStorage.setItem('nuStatsCgpa.theme', r.dataset.theme); } catch (e) {}
+    var next = isDark() ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem('nuStatsCgpa.theme', next); } catch (e) {}
+    applyThemeChrome();
   });
   document.querySelector('.mark').addEventListener('click', function (e) { e.preventDefault(); window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' }); });
+  var importFile = document.getElementById('importFile');
+  if (importFile) importFile.addEventListener('change', function () {
+    var f = importFile.files && importFile.files[0];
+    if (f) importFromFile(f);
+    importFile.value = '';
+  });
+  if (window.matchMedia) {
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    var onScheme = function () { try { if (!localStorage.getItem('nuStatsCgpa.theme')) applyThemeChrome(); } catch (e) { applyThemeChrome(); } };
+    // old Safari only has addListener
+    if (mq.addEventListener) mq.addEventListener('change', onScheme); else if (mq.addListener) mq.addListener(onScheme);
+  }
 
   applyLang();
+  applyThemeChrome();
   render();
 })();

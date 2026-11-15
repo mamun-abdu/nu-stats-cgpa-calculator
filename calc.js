@@ -1,5 +1,4 @@
-/* Pure calculation logic for the NU Statistics CGPA calculator.
- * Works in the browser (window.NUCalc) and in Node (module.exports). */
+/* All the GPA/CGPA maths. No DOM here, so the tests can load it in Node too. */
 (function (root) {
   'use strict';
 
@@ -18,7 +17,7 @@
 
   var BN = '০১২৩৪৫৬৭৮৯';
 
-  /** Convert Bangla digits (and Bangla/Arabic decimal marks) to ASCII. */
+  // Bangla digits -> ASCII (people type ৩.৫০ a lot)
   function toAscii(str) {
     if (str === null || str === undefined) return '';
     return String(str)
@@ -27,12 +26,12 @@
       .trim();
   }
 
-  /** Convert ASCII digits to Bangla digits. */
+  // and back again
   function toBangla(str) {
     return String(str).replace(/[0-9]/g, function (d) { return BN[+d]; });
   }
 
-  /** Parse a user-typed number (Bangla or English digits). Returns NaN if invalid/empty. */
+  // NaN when empty or not a number
   function parseNum(str) {
     var s = toAscii(str);
     if (s === '' || !/^\d*\.?\d+$|^\d+\.$/.test(s)) return NaN;
@@ -48,21 +47,12 @@
     return null;
   }
 
-  /** Map a percentage (0-100) to an NU grade. */
   function gradeFromPercent(pct) {
     if (typeof pct !== 'number' || !(pct >= 0) || pct > 100) return null;
     for (var i = 0; i < GRADES.length; i++) if (pct >= GRADES[i].min) return GRADES[i];
     return GRADES[GRADES.length - 1];
   }
 
-  /** Map obtained marks out of fullMarks (default 100) to a grade. */
-  function gradeFromMarks(obtained, fullMarks) {
-    var full = fullMarks > 0 ? fullMarks : 100;
-    if (typeof obtained !== 'number' || !(obtained >= 0) || obtained > full) return null;
-    return gradeFromPercent((obtained / full) * 100);
-  }
-
-  /** Letter grade for a GPA/CGPA value on the NU 4.00 scale. */
   function letterFromGPA(gpa) {
     if (typeof gpa !== 'number' || !(gpa >= 0)) return null;
     var g = round2(gpa);
@@ -72,10 +62,7 @@
     return 'F';
   }
 
-  /**
-   * Compute a year's GPA.
-   * entries: [{ credits, letter, counted }]; only counted entries with a letter are used.
-   */
+  // entries: [{ credits, letter, counted }]. Ungraded or unticked ones are skipped.
   function computeGPA(entries) {
     var credits = 0, weighted = 0, fails = 0, graded = 0, countedCredits = 0;
     entries.forEach(function (e) {
@@ -100,7 +87,6 @@
     };
   }
 
-  /** CGPA from [{ gpa, credits }] weighted by credits. */
   function computeCGPA(years) {
     var credits = 0, weighted = 0;
     years.forEach(function (y) {
@@ -113,23 +99,36 @@
     return { cgpa: cgpa, letter: cgpa === null ? null : letterFromGPA(cgpa), credits: credits };
   }
 
-  // ---------- Sessions & syllabus eras ----------
   var YEAR_IDS = ['y1', 'y2', 'y3', 'y4', 'ms'];
+  // Honours and Masters are two different degrees, so they never share a CGPA.
+  var LEVELS = { hons: ['y1', 'y2', 'y3', 'y4'], ms: ['ms'] };
+  function levelOf(yearId) { return yearId === 'ms' ? 'ms' : 'hons'; }
 
-  /** 'old' (2013-14 syllabus) or 'new' (2024-25 syllabus) for a session id like '2023-2024'. */
+  function levelCgpa(yearResults, level) {
+    var ids = LEVELS[level] || [];
+    yearResults = yearResults || {};
+    return computeCGPA(ids.map(function (id) { return yearResults[id] || null; }));
+  }
+
+  function levelLetters(lettersByYear, level) {
+    var out = [];
+    (LEVELS[level] || []).forEach(function (id) { (lettersByYear && lettersByYear[id] || []).forEach(function (g) { out.push(g); }); });
+    return out;
+  }
+
+  // 'old' = 2013-14 syllabus, 'new' = 2024-25 syllabus
   function eraForSession(data, sessionId) {
     for (var i = 0; i < data.sessions.length; i++) if (data.sessions[i].id === sessionId) return data.sessions[i].era;
     return null;
   }
 
-  /** Year syllabus object for a session, or null when that year's syllabus is not published. */
+  // null when NU hasn't published that year yet
   function yearFor(data, sessionId, yearId) {
     var era = eraForSession(data, sessionId);
     if (!era) return null;
     return data.eras[era].years[yearId] || null;
   }
 
-  /** Count graded letters into { 'A+': n, ... } in scale order. */
   function gradeDistribution(letters) {
     var out = {};
     GRADES.forEach(function (g) { out[g.letter] = 0; });
@@ -137,10 +136,187 @@
     return out;
   }
 
+  // Official marks/credits for a year. Non-credit English and the unpicked optionals don't count.
+  function officialYearTotals(year) {
+    if (!year || !Array.isArray(year.courses)) return null;
+    var creditMarks = 0, hasMarks = false, nonCredit = [];
+    var groups = {};
+    year.courses.forEach(function (c) {
+      if (c.nonCredit) {
+        nonCredit.push({ code: c.code, name: c.name, marks: typeof c.marks === 'number' ? c.marks : 0 });
+        return;
+      }
+      if (c.pick) {
+        var k = c.section || '';
+        if (!groups[k]) groups[k] = { pick: c.pick, items: [] };
+        groups[k].items.push(c);
+        return;
+      }
+      if (typeof c.marks === 'number') { creditMarks += c.marks; hasMarks = true; }
+    });
+    Object.keys(groups).forEach(function (k) {
+      var g = groups[k], nPick = Math.min(g.pick, g.items.length);
+      for (var i = 0; i < nPick; i++) {
+        if (typeof g.items[i].marks === 'number') { creditMarks += g.items[i].marks; hasMarks = true; }
+      }
+    });
+    return { creditMarks: hasMarks ? creditMarks : null, credits: year.totalCredits, nonCredit: nonCredit };
+  }
+
+  function yearPublished(data, sessionId, yearId) {
+    return !!yearFor(data, sessionId, yearId);
+  }
+
+  function sessionGroups(data) {
+    var groups = [], by = {};
+    (data.sessions || []).forEach(function (s) {
+      if (!by[s.era]) { by[s.era] = { era: s.era, sessions: [] }; groups.push(by[s.era]); }
+      by[s.era].sessions.push(s);
+    });
+    return groups;
+  }
+
+  // GPA needed in the remaining credits to hit a target CGPA.
+  function requiredGpa(currentCgpa, earnedCredits, remainingCredits, targetCgpa) {
+    function fail(err) { return { ok: false, required: null, possible: false, alreadyMet: false, error: err }; }
+    var args = [currentCgpa, earnedCredits, remainingCredits, targetCgpa];
+    for (var i = 0; i < args.length; i++) {
+      if (typeof args[i] !== 'number' || !isFinite(args[i])) return fail('invalid');
+    }
+    if (earnedCredits < 0 || remainingCredits < 0) return fail('invalid');
+    if (currentCgpa < 0 || currentCgpa > 4 || targetCgpa < 0 || targetCgpa > 4) return fail('invalid');
+    if (earnedCredits === 0 && remainingCredits === 0) return fail('invalid');
+    if (remainingCredits === 0) {
+      var met = currentCgpa + 1e-9 >= targetCgpa;
+      return { ok: true, required: null, possible: met, alreadyMet: met, error: met ? null : 'no-remaining' };
+    }
+    var req = (targetCgpa * (earnedCredits + remainingCredits) - currentCgpa * earnedCredits) / remainingCredits;
+    if (req <= 0) return { ok: true, required: 0, possible: true, alreadyMet: true, error: null };
+    var reqR = round2(req);
+    if (reqR > 4) return { ok: true, required: reqR, possible: false, alreadyMet: false, error: 'impossible' };
+    return { ok: true, required: reqR, possible: true, alreadyMet: false, error: null };
+  }
+
+  // Honours credits done vs left. unknown = some year isn't published, so I can't count it.
+  function remainingHonours(data, sessionId, yearResults) {
+    var earned = 0, remaining = 0, unknown = false;
+    var ids = ['y1', 'y2', 'y3', 'y4'];
+    yearResults = yearResults || {};
+    ids.forEach(function (id) {
+      var y = yearFor(data, sessionId, id);
+      var r = yearResults[id] || {};
+      if (typeof r.gpa === 'number' && r.credits > 0) {
+        earned += r.credits;
+        if (!r.manual && typeof r.totalCredits === 'number' && r.totalCredits > r.credits) remaining += r.totalCredits - r.credits;
+      } else if (y) {
+        remaining += y.totalCredits;
+      } else {
+        unknown = true;
+      }
+    });
+    return { earned: earned, remaining: remaining, unknown: unknown };
+  }
+
+  function exportPayload(state, now) {
+    var d = now ? new Date(now) : new Date();
+    return {
+      app: 'nu-stats-cgpa-calculator',
+      v: 2,
+      exportedAt: d.toISOString(),
+      lang: state && (state.lang === 'bn' || state.lang === 'en') ? state.lang : 'en',
+      session: state && state.session ? state.session : null,
+      year: state && state.year ? state.year : 'y1',
+      level: state && state.level === 'ms' ? 'ms' : 'hons',
+      data: state && state.data ? state.data : {}
+    };
+  }
+
+  var BAD_KEYS = ['__proto__', 'constructor', 'prototype'];
+  function safeKey(k) { return BAD_KEYS.indexOf(k) < 0; }
+  function validLetter(g) { return g === '' || !!gradeByLetter(g); }
+
+  function sanitizeSavedData(data) {
+    var out = {};
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return out;
+    Object.keys(data).forEach(function (sid) {
+      if (!safeKey(sid)) return;
+      var years = data[sid];
+      if (!years || typeof years !== 'object') return;
+      out[sid] = {};
+      Object.keys(years).forEach(function (yid) {
+        if (YEAR_IDS.indexOf(yid) < 0) return;
+        var y = years[yid];
+        if (y == null) { out[sid][yid] = null; return; }
+        if (typeof y !== 'object') return;
+        var c = {};
+        if (y.c && typeof y.c === 'object') {
+          Object.keys(y.c).forEach(function (code) {
+            if (!safeKey(code)) return;
+            var e = y.c[code];
+            var g = e && typeof e === 'object' ? e.g : e;
+            if (typeof g === 'string' && validLetter(g)) c[code] = { g: g };
+          });
+        }
+        var manual = { on: false, gpa: '', credits: '' };
+        if (y.manual && typeof y.manual === 'object') {
+          manual.on = !!y.manual.on;
+          if (y.manual.gpa != null) manual.gpa = String(y.manual.gpa);
+          if (y.manual.credits != null) manual.credits = String(y.manual.credits);
+        }
+        var sel = null;
+        if (Array.isArray(y.sel)) sel = y.sel.filter(function (x) { return typeof x === 'string'; });
+        out[sid][yid] = { c: c, sel: sel, manual: manual };
+      });
+    });
+    return out;
+  }
+
+  // Used for both localStorage and backup files, so treat everything as untrusted.
+  // Old saves can have marks or custom courses; those just get dropped.
+  function parseImport(input) {
+    var obj = input;
+    if (typeof input === 'string') {
+      var s = input.trim();
+      if (!s) return { ok: false, error: 'invalid-json', state: null };
+      try { obj = JSON.parse(s); } catch (e) { return { ok: false, error: 'invalid-json', state: null }; }
+    }
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return { ok: false, error: 'invalid-shape', state: null };
+    var lang = obj.lang, session = obj.session, year = obj.year, data = obj.data, level = obj.level;
+    if (lang != null && lang !== 'en' && lang !== 'bn') return { ok: false, error: 'invalid-lang', state: null };
+    if (session != null && typeof session !== 'string') return { ok: false, error: 'invalid-session', state: null };
+    if (year != null && year !== '' && YEAR_IDS.indexOf(year) < 0) return { ok: false, error: 'invalid-year', state: null };
+    if (level != null && level !== 'hons' && level !== 'ms') return { ok: false, error: 'invalid-level', state: null };
+    if (data == null) return { ok: false, error: 'invalid-shape', state: null };
+    if (typeof data !== 'object' || Array.isArray(data)) return { ok: false, error: 'invalid-shape', state: null };
+    return {
+      ok: true,
+      error: null,
+      state: {
+        lang: lang === 'bn' || lang === 'en' ? lang : null,
+        session: session || null,
+        // Masters used to be a 5th tab
+        year: year === 'ms' ? 'y1' : (year && YEAR_IDS.indexOf(year) >= 0 ? year : null),
+        level: level === 'ms' || year === 'ms' ? 'ms' : 'hons',
+        data: sanitizeSavedData(data)
+      }
+    };
+  }
+
   var api = {
     YEAR_IDS: YEAR_IDS,
+    LEVELS: LEVELS,
+    levelOf: levelOf,
+    levelCgpa: levelCgpa,
+    levelLetters: levelLetters,
     eraForSession: eraForSession,
     yearFor: yearFor,
+    officialYearTotals: officialYearTotals,
+    yearPublished: yearPublished,
+    sessionGroups: sessionGroups,
+    requiredGpa: requiredGpa,
+    remainingHonours: remainingHonours,
+    exportPayload: exportPayload,
+    parseImport: parseImport,
     gradeDistribution: gradeDistribution,
     GRADES: GRADES,
     toAscii: toAscii,
@@ -149,7 +325,6 @@
     round2: round2,
     gradeByLetter: gradeByLetter,
     gradeFromPercent: gradeFromPercent,
-    gradeFromMarks: gradeFromMarks,
     letterFromGPA: letterFromGPA,
     computeGPA: computeGPA,
     computeCGPA: computeCGPA

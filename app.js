@@ -771,9 +771,10 @@
     importFile.value = '';
   });
   if (window.matchMedia) {
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
-      if (!localStorage.getItem('nuStatsCgpa.theme')) applyThemeChrome();
-    });
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    var onScheme = function () { try { if (!localStorage.getItem('nuStatsCgpa.theme')) applyThemeChrome(); } catch (e) { applyThemeChrome(); } };
+    // Safari < 14 only has addListener; calling addEventListener there threw before the first render.
+    if (mq.addEventListener) mq.addEventListener('change', onScheme); else if (mq.addListener) mq.addListener(onScheme);
   }
 
   applyLang();

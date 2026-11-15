@@ -56,9 +56,9 @@ self.addEventListener('fetch', function (event) {
   if (url.origin !== self.location.origin) return;
 
   if (isAppShell(req, url)) {
-    // Network first so new deploys show up; fall back to cache offline.
+    // Network first (revalidated with the server, cheap 304s) so new deploys show up; cache when offline.
     event.respondWith(
-      fetch(req).then(function (res) { return putInCache(req, res); }).catch(function () {
+      fetch(req, { cache: 'no-cache' }).then(function (res) { return putInCache(req, res); }).catch(function () {
         return caches.match(req, { ignoreSearch: req.mode === 'navigate' }).then(function (hit) {
           if (hit) return hit;
           if (req.mode === 'navigate') return caches.match('./index.html');

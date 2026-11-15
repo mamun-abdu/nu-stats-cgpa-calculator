@@ -5,8 +5,8 @@
   var KEY = 'nuStatsCgpa.v2';
   var HON = ['y1', 'y2', 'y3', 'y4'];
   var ALL = ['y1', 'y2', 'y3', 'y4', 'ms'];
-  var GCOL = { 'A+': '#3f8f5f', 'A': '#5d9b5f', 'A-': '#86a957', 'B+': '#b9ad4a', 'B': '#dba63c', 'B-': '#e5933a', 'C+': '#e07d3b', 'C': '#d8683b', 'D': '#c9583f', 'F': '#c4413a' };
-  var DARKTXT = { 'B+': 1, 'B': 1, 'B-': 1 };
+  var GCOL = { 'A+': '#0f6b62', 'A': '#16796f', 'A-': '#2a7f8f', 'B+': '#33729c', 'B': '#3f63a3', 'B-': '#5257a3', 'C+': '#6a4f9a', 'C': '#7c4a8a', 'D': '#8f4570', 'F': '#b42318' };
+  var DARKTXT = {};
   var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   // ---------- state ----------
@@ -303,7 +303,7 @@
   }
   function paintSel(s) {
     var v = s.value; s.classList.toggle('set', !!v);
-    s.style.background = v ? GCOL[v] : ''; s.style.color = v ? (DARKTXT[v] ? '#2a2420' : '#fff') : '';
+    s.style.background = v ? GCOL[v] : ''; s.style.color = v ? (DARKTXT[v] ? '#16212a' : '#fff') : '';
   }
 
   function renderYear(yid) {
@@ -412,7 +412,7 @@
     var tb = el('tbody');
     D.grades.forEach(function (g) {
       tb.appendChild(el('tr', null, [el('td', { class: 'num', text: g.min === 0 ? '< ' + n(40) : n(g.min) + '–' + n(g.max) }),
-        el('td', null, [el('span', { class: 'badge', style: 'background:' + GCOL[g.letter] + ';color:' + (DARKTXT[g.letter] ? '#2a2420' : '#fff') + ';height:24px;font-size:.82rem', text: g.letter })]),
+        el('td', null, [el('span', { class: 'badge', style: 'background:' + GCOL[g.letter] + ';color:' + (DARKTXT[g.letter] ? '#16212a' : '#fff') + ';height:24px;font-size:.82rem', text: g.letter })]),
         el('td', { class: 'num', text: n(g.point.toFixed(2)) })]));
     });
     return el('div', { class: 'more' }, [el('details', { class: 'card' }, [
@@ -620,44 +620,44 @@
     var ctx = canvas.getContext('2d');
     ctx.scale(2, 2);
     var font = getComputedStyle(document.documentElement).getPropertyValue('--font').trim() || 'sans-serif';
-    ctx.fillStyle = '#fbf6ef';
+    ctx.fillStyle = '#f5f7f8';
     ctx.fillRect(0, 0, w, h);
     rounded(ctx, 24, 24, w - 48, h - 48, 28, '#ffffff');
-    ctx.fillStyle = '#d9653b';
-    rounded(ctx, pad, pad, 48, 48, 14, '#d9653b');
+    ctx.fillStyle = '#0f766e';
+    rounded(ctx, pad, pad, 48, 48, 14, '#0f766e');
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 3.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     ctx.beginPath(); ctx.moveTo(pad + 13, pad + 32); ctx.lineTo(pad + 21, pad + 22); ctx.lineTo(pad + 28, pad + 27); ctx.lineTo(pad + 38, pad + 14); ctx.stroke();
-    ctx.fillStyle = '#2a2420';
-    ctx.font = '700 28px ' + font;
+    ctx.fillStyle = '#16212a';
+    ctx.font = '600 28px ' + font;
     ctx.fillText(t('brand'), pad + 64, pad + 26);
-    ctx.font = '500 15px ' + font;
-    ctx.fillStyle = '#7a6d63';
+    ctx.font = '400 15px ' + font;
+    ctx.fillStyle = '#55636c';
     ctx.fillText(t('brandSub'), pad + 64, pad + 48);
     ctx.font = '600 16px ' + font;
-    ctx.fillStyle = '#7a6d63';
+    ctx.fillStyle = '#55636c';
     ctx.fillText(t('sessionChip', { s: sessLabel(state.session) }) + '  ·  ' + todayLabel(), pad, pad + 92);
-    ctx.fillStyle = '#7a6d63';
+    ctx.fillStyle = '#55636c';
     ctx.font = '600 14px ' + font;
     ctx.fillText(t('yourCgpa'), pad, pad + 140);
-    ctx.fillStyle = '#2a2420';
-    ctx.font = '700 86px ' + font;
+    ctx.fillStyle = '#16212a';
+    ctx.font = '600 86px ' + font;
     ctx.fillText(c.cgpa === null ? '–' : c.cgpa.toFixed(2), pad, pad + 230);
     if (c.letter) {
-      ctx.fillStyle = '#d9653b';
-      rounded(ctx, pad + 320, pad + 175, 64, 36, 10, '#fbe6dc');
-      ctx.fillStyle = '#d9653b';
-      ctx.font = '700 18px ' + font;
+      ctx.fillStyle = '#0f766e';
+      rounded(ctx, pad + 320, pad + 175, 64, 36, 10, '#e1f1ef');
+      ctx.fillStyle = '#0f766e';
+      ctx.font = '600 18px ' + font;
       ctx.fillText(c.letter, pad + 338, pad + 200);
     }
-    ctx.fillStyle = '#7a6d63';
-    ctx.font = '500 15px ' + font;
+    ctx.fillStyle = '#55636c';
+    ctx.font = '400 15px ' + font;
     var sub = document.getElementById('cgSub');
     ctx.fillText(sub ? sub.textContent : '', pad, pad + 262);
 
     var y0 = pad + 300;
-    ctx.strokeStyle = '#ece1d4'; ctx.lineWidth = 1;
+    ctx.strokeStyle = '#dde4e6'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(pad, y0); ctx.lineTo(w - pad, y0); ctx.stroke();
-    ctx.fillStyle = '#7a6d63';
+    ctx.fillStyle = '#55636c';
     ctx.font = '600 13px ' + font;
     ctx.fillText(t('gpaByYear'), pad, y0 + 28);
     ctx.fillText(t('gpa'), pad + 280, y0 + 28);
@@ -665,15 +665,15 @@
     ctx.fillText(t('scaleLetter'), pad + 600, y0 + 28);
     rows.forEach(function (row, i) {
       var yy = y0 + 64 + i * 48;
-      ctx.fillStyle = '#2a2420';
+      ctx.fillStyle = '#16212a';
       ctx.font = '600 18px ' + font;
       ctx.fillText(row.label, pad, yy);
       ctx.fillText(row.gpa === null ? '–' : row.gpa.toFixed(2), pad + 280, yy);
       ctx.fillText(row.credits ? String(row.credits) : '–', pad + 430, yy);
       ctx.fillText(row.letter || '–', pad + 600, yy);
     });
-    ctx.fillStyle = '#7a6d63';
-    ctx.font = '500 13px ' + font;
+    ctx.fillStyle = '#55636c';
+    ctx.font = '400 13px ' + font;
     wrapText(ctx, t('disclaimer'), pad, h - pad - 36, w - pad * 2, 20);
     ctx.fillText(t('madeBy'), pad, h - pad + 4);
     canvas.toBlob(function (blob) {
@@ -715,7 +715,7 @@
       btn.setAttribute('aria-pressed', String(dark));
       btn.setAttribute('aria-label', t('theme'));
     }
-    var color = dark ? '#1b1714' : '#fbf6ef';
+    var color = dark ? '#0f1518' : '#f5f7f8';
     document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) { m.setAttribute('content', color); });
   }
 

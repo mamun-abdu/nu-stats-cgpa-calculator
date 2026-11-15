@@ -19,7 +19,7 @@ A friendly GPA and CGPA calculator for **National University (Bangladesh) B.Sc. 
 3. For each course, pick a **grade**. Students only receive letter grades, not obtained marks.
 4. See your year GPA and your Honours **CGPA** update live, with a GPA-by-year chart and a grade-mix donut.
 
-Sessions are grouped as **2013–14 to 2023–24 (old syllabus)** and **2024–25 onward (new syllabus)**. For 2024–25+ sessions only 1st and 2nd year have official course lists. Later years show a “not published yet” note; you can still type a published GPA or add your own courses, and that is marked unofficial.
+Sessions are grouped as **2013–14 to 2023–24 (old syllabus)** and **2024–25 onward (new syllabus)**. For 2024–25+ sessions only 1st and 2nd year have official course lists. Later years show a “not published yet” note; you can still type a published GPA, and that is marked unofficial. Every course comes from the NU syllabus in `data.js`.
 
 Old 2nd-year totals are shown as **700 marks**, with English (Compulsory) listed separately as non-credit.
 

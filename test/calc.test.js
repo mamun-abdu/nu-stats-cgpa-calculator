@@ -196,7 +196,7 @@ t('export payload and import validation, including leftover marks fields', () =>
     lang: 'bn',
     session: '2023-2024',
     year: 'y2',
-    data: { '2023-2024': { y1: { c: { '213601': { g: 'A+', m: '85' } }, sel: null, custom: [], manual: { on: false, gpa: '', credits: '' } } } }
+    data: { '2023-2024': { y1: { c: { '213601': { g: 'A+', m: '85' } }, sel: null, manual: { on: false, gpa: '', credits: '' } } } }
   }, '2026-11-15T10:00:00.000Z');
   assert.strictEqual(payload.app, 'nu-stats-cgpa-calculator');
   assert.strictEqual(payload.v, 2);
@@ -226,6 +226,13 @@ t('import drops unknown grades and prototype keys', () => {
   assert.deepStrictEqual(Object.keys(c), ['213603']);
   assert.strictEqual(Object.getPrototypeOf(c), Object.prototype);
   assert.strictEqual(({}).g, undefined);
+});
+
+t('old saved data with custom courses loads, custom courses are dropped', () => {
+  const r = C.parseImport({ lang: 'en', session: '2023-2024', year: 'y1', data: { '2023-2024': { y1: { c: { '213601': { g: 'A' } }, custom: [{ name: 'Extra', credits: 4, g: 'A+' }] } } } });
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.state.data['2023-2024'].y1.custom, undefined);
+  assert.deepStrictEqual(r.state.data['2023-2024'].y1.c, { '213601': { g: 'A' } });
 });
 
 console.log(`\nAll ${n} test groups passed.`);

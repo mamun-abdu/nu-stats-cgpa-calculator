@@ -30,9 +30,9 @@
     var s = state.data[state.session] || (state.data[state.session] = {});
     var y = s[yid];
     if (!y || typeof y !== 'object') {
-      y = s[yid] = { c: {}, sel: null, custom: [], manual: { on: false, gpa: '', credits: '' } };
+      y = s[yid] = { c: {}, sel: null, manual: { on: false, gpa: '', credits: '' } };
     }
-    if (!y.c) y.c = {}; if (!Array.isArray(y.custom)) y.custom = []; if (!y.manual) y.manual = { on: false, gpa: '', credits: '' };
+    if (!y.c) y.c = {}; if (!y.manual) y.manual = { on: false, gpa: '', credits: '' };
     if (!Array.isArray(y.sel)) y.sel = defaultSel(C.yearFor(D, state.session, yid));
     return y;
   }
@@ -111,7 +111,6 @@
   function entries(yid) {
     var y = C.yearFor(D, state.session, yid), s = yst(yid), out = [];
     if (y) y.courses.forEach(function (c) { out.push({ credits: c.credits, letter: (s.c[c.code] || {}).g || '', counted: isCounted(yid, c) }); });
-    s.custom.forEach(function (c) { out.push({ credits: c.credits, letter: c.g || '', counted: true }); });
     return out;
   }
   function yearResult(yid) {
@@ -133,7 +132,6 @@
       if (yst(yid).manual.on) return;
       var y = C.yearFor(D, state.session, yid), s = yst(yid);
       if (y) y.courses.forEach(function (c) { var g = (s.c[c.code] || {}).g; if (g && isCounted(yid, c)) out.push(g); });
-      s.custom.forEach(function (c) { if (c.g) out.push(c.g); });
     });
     return out;
   }
@@ -381,39 +379,6 @@
       ]));
     }
 
-    // custom courses
-    var cl = el('div', { class: 'list', role: 'list' });
-    function drawCustom() {
-      cl.innerHTML = '';
-      s.custom.forEach(function (c, i) {
-        var sel = gradeSelect(c.g || '', t('gradeFor', { c: c.name }));
-        sel.addEventListener('change', function () { c.g = sel.value; paintSel(sel); save(); refresh(); });
-        cl.appendChild(el('div', { class: 'row', role: 'listitem' }, [
-          el('div', null, [el('div', { class: 'r-name', text: c.name }), el('div', { class: 'r-meta num', text: n(c.credits) + ' ' + t('cr') })]),
-          el('div', { class: 'ctl' }, [sel, el('button', { type: 'button', class: 'xbtn', 'aria-label': t('remove', { c: c.name }), text: '×', onclick: function () { s.custom.splice(i, 1); save(); drawCustom(); refresh(); } })])
-        ]));
-      });
-      cl.hidden = !s.custom.length;
-    }
-    drawCustom();
-    var an = el('input', { id: 'an-' + yid, type: 'text', autocomplete: 'off', maxlength: '80' });
-    var ac = el('input', { id: 'ac-' + yid, type: 'text', inputmode: 'decimal', autocomplete: 'off', placeholder: n('4') });
-    var ag = gradeSelect('', t('gradePh')); ag.id = 'ag-' + yid; ag.className = 'gsel'; ag.style.width = '100%';
-    var form = el('form', { class: 'add', novalidate: true }, [
-      el('div', { class: 'field' }, [el('label', { for: an.id, text: t('courseName') }), an]),
-      el('div', { class: 'field' }, [el('label', { for: ac.id, text: t('creditsLbl') }), ac]),
-      el('div', { class: 'field' }, [el('label', { for: ag.id, text: t('gradePh') }), ag]),
-      el('button', { class: 'btn go', type: 'submit', text: t('add') })
-    ]);
-    ag.addEventListener('change', function () { paintSel(ag); });
-    form.addEventListener('submit', function (e) {
-      e.preventDefault();
-      var name = an.value.trim(), cr = C.parseNum(ac.value);
-      if (!name || isNaN(cr) || cr <= 0 || cr > 20) { toast(t('addErr')); (name ? ac : an).focus(); return; }
-      s.custom.push({ name: name, credits: cr, g: ag.value }); save();
-      an.value = ''; ac.value = ''; ag.value = ''; paintSel(ag); drawCustom(); refresh(); an.focus();
-    });
-    body.appendChild(el('div', { class: 'group' }, [el('div', { class: 'gh' }, [el('h3', { text: y ? t('myCourses') : t('addCourse') })]), cl, form]));
     card.appendChild(body);
     if (yid === 'ms') card.appendChild(el('p', { class: 'sub', text: t('msNote') }));
     return card;
@@ -560,7 +525,7 @@
     var rows = [];
     ALL.forEach(function (id) {
       var y = C.yearFor(D, state.session, id), r = yearResult(id);
-      if (!y && r.gpa === null && !yst(id).custom.length && !yst(id).manual.on) return;
+      if (!y && r.gpa === null && !yst(id).manual.on) return;
       rows.push({ id: id, label: t(id), gpa: r.gpa, letter: r.letter, credits: r.credits, total: r.manual ? r.credits : r.totalCredits, published: !!y });
     });
     return rows;

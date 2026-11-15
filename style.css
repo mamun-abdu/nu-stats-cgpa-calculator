@@ -208,18 +208,13 @@ select.ghost-btn { padding-right: 12px; }
 .gsel { appearance: none; -webkit-appearance: none; height: 40px; min-width: 64px; padding: 0 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-weight: 700; text-align: center; text-align-last: center; cursor: pointer; transition: background .2s, color .2s, border-color .2s; }
 .gsel.set { border-color: transparent; }
 .nc { font-size: .74rem; color: var(--muted); font-style: italic; }
-.xbtn { width: 32px; height: 40px; border: 0; background: transparent; color: var(--muted); cursor: pointer; border-radius: 10px; font-size: 1.1rem; }
-.xbtn:hover { color: var(--bad); }
 
-.add { display: grid; grid-template-columns: 1fr 72px 76px; gap: 8px; margin-top: 10px; }
-.add .go { grid-column: 1 / -1; }
 .field label { display: block; font-size: .74rem; color: var(--muted); margin: 0 0 4px 2px; }
 .field input, .field select { width: 100%; height: 42px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); padding: 0 12px; font-size: .95rem; }
 .field input[aria-invalid="true"] { border-color: var(--bad); background: var(--bad-soft); }
 .manual .field input { background: var(--surface); }
 .btn { height: 42px; padding: 0 16px; border-radius: 12px; border: 0; background: var(--accent); color: var(--accent-ink); font-weight: 700; cursor: pointer; transition: transform .15s var(--ease), filter .2s; }
 .btn:hover { filter: brightness(1.05); } .btn:active { transform: scale(.98); }
-@media (min-width: 560px) { .add { grid-template-columns: 1fr 80px 90px auto; align-items: end; } .add .go { grid-column: auto; } }
 
 .empty { text-align: center; padding: 18px 8px 4px; }
 .empty svg { margin: 0 auto 8px; display: block; }
@@ -285,7 +280,7 @@ th { font-size: .75rem; color: var(--muted); font-weight: 600; }
 .print-sheet { display: none; }
 
 @media print {
-  .bar, .years, .tools, .switch, .add, .toast, .skip, .actions, .planner, .ctl, .ghost-btn, .round-btn, .chip-btn, #themeBtn, #langBtn, #sessionBtn, .scale-body, details.card, .mix { display: none !important; }
+  .bar, .years, .tools, .switch, .toast, .skip, .actions, .planner, .ctl, .ghost-btn, .round-btn, .chip-btn, #themeBtn, #langBtn, #sessionBtn, .scale-body, details.card, .mix { display: none !important; }
   .print-sheet { display: block !important; margin: 0 0 24px; }
   .print-sheet h1 { margin: 0 0 6px; font-size: 1.6rem; }
   .print-cg { font-size: 1.4rem; font-weight: 700; }

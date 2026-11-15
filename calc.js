@@ -258,16 +258,6 @@
             if (typeof g === 'string' && validLetter(g)) c[code] = { g: g };
           });
         }
-        var custom = [];
-        if (Array.isArray(y.custom)) {
-          y.custom.forEach(function (item) {
-            if (!item || typeof item !== 'object') return;
-            var name = typeof item.name === 'string' ? item.name : '';
-            var cr = typeof item.credits === 'number' ? item.credits : parseFloat(item.credits);
-            if (!name || !(cr > 0)) return;
-            custom.push({ name: name, credits: cr, g: typeof item.g === 'string' && validLetter(item.g) ? item.g : '' });
-          });
-        }
         var manual = { on: false, gpa: '', credits: '' };
         if (y.manual && typeof y.manual === 'object') {
           manual.on = !!y.manual.on;
@@ -276,13 +266,13 @@
         }
         var sel = null;
         if (Array.isArray(y.sel)) sel = y.sel.filter(function (x) { return typeof x === 'string'; });
-        out[sid][yid] = { c: c, sel: sel, custom: custom, manual: manual };
+        out[sid][yid] = { c: c, sel: sel, manual: manual };
       });
     });
     return out;
   }
 
-  /** Accept a saved-state object, an export payload, or a JSON string. Strips leftover marks fields. */
+  /** Accept a saved-state object, an export payload, or a JSON string. Drops leftover marks and custom-course fields from older versions. */
   function parseImport(input) {
     var obj = input;
     if (typeof input === 'string') {

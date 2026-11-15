@@ -16,19 +16,25 @@ A friendly GPA and CGPA calculator for **National University (Bangladesh) B.Sc. 
    | 2013–14 … 2023–24 | effective from 2013–14 | 28 cr | 28 cr (+ non-credit English) | 32 cr | 40 cr | 36 cr |
    | 2024–25 … 2026–27 | effective from 2024–25 | 36 cr | 38 cr | *not published yet* | *not published yet* | *not published yet* |
 
-3. For each course, pick a **grade**.
+3. For each course, pick a **grade**. Students only receive letter grades, not obtained marks.
 4. See your year GPA and your Honours **CGPA** update live, with a GPA-by-year chart and a grade-mix donut.
 
-When a year's syllabus isn't published yet, or you only know your published result, you can **add your own courses** (name, credits, grade) or **type your published GPA** for that year. Both options work on every year.
+Sessions are grouped as **2013–14 to 2023–24 (old syllabus)** and **2024–25 onward (new syllabus)**. For 2024–25+ sessions only 1st and 2nd year have official course lists. Later years show a “not published yet” note; you can still type a published GPA or add your own courses, and that is marked unofficial.
+
+Old 2nd-year totals are shown as **700 marks**, with English (Compulsory) listed separately as non-credit.
 
 ## Features
 
-- Session picker with both syllabus eras
+- Session picker grouped by syllabus era
 - 4th-year optional papers and labs (“any two”) and Masters optional papers (“any three”): only the ones you tick count
 - Non-credit papers are shown but left out of the GPA
 - Grade dropdowns for each course; numeric fields accept Bangla digits (৩.৫০)
+- Target CGPA planner: required GPA in remaining honours credits
+- Download a result-card PNG, print or save a PDF, and export or import a JSON backup. Nothing leaves the device.
+- Clear all saved data (grades and theme), with confirmation
 - Full English / বাংলা interface (remembered)
-- Light and dark themes, small animations that respect *reduced motion*
+- Light and dark themes that follow the system preference until you pick one; animations respect *reduced motion*
+- Works offline as a PWA (manifest + service worker). Safe to host on GitHub Pages at `/nu-stats-cgpa-calculator/`.
 - Saves automatically in your browser (localStorage). Nothing is sent anywhere.
 - Plain HTML, CSS and JavaScript: no framework, no build step
 
@@ -78,7 +84,8 @@ node test/calc.test.js
 | `data.js` | Sessions, syllabus eras, every year's courses, grading scale |
 | `calc.js` | Pure calculation logic (shared with tests) |
 | `i18n.js` | English and Bangla UI text |
-| `app.js` | Interface, charts, saving |
+| `app.js` | Interface, charts, saving, export |
+| `manifest.webmanifest`, `sw.js`, `icons/` | PWA install and offline cache, plus favicons |
 | `fonts/` | Self-hosted Nikosh (Bangla) and DM Sans (Latin); see `fonts/README.md` |
 | `test/calc.test.js` | Node tests |
 

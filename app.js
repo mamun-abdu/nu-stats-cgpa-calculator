@@ -621,6 +621,7 @@
     reader.onload = function () {
       var parsed = C.parseImport(String(reader.result || ''));
       if (!parsed.ok) { toast(t('importErr')); return; }
+      if (Object.keys(state.data || {}).length && !confirm(t('importQ'))) return;
       if (parsed.state.lang) state.lang = parsed.state.lang;
       if (parsed.state.session && C.eraForSession(D, parsed.state.session)) state.session = parsed.state.session;
       if (parsed.state.year) state.year = parsed.state.year;

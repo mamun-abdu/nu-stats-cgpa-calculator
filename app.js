@@ -14,12 +14,12 @@
   function load() {
     var s = { lang: (navigator.language || '').indexOf('bn') === 0 ? 'bn' : 'en', session: null, year: 'y1', data: {} };
     try {
-      var r = JSON.parse(localStorage.getItem(KEY) || 'null');
-      if (r && typeof r === 'object') {
-        if (r.lang === 'en' || r.lang === 'bn') s.lang = r.lang;
-        if (typeof r.session === 'string' && C.eraForSession(D, r.session)) s.session = r.session;
-        if (ALL.indexOf(r.year) >= 0) s.year = r.year;
-        if (r.data && typeof r.data === 'object') s.data = r.data;
+      var parsed = C.parseImport(localStorage.getItem(KEY) || '');
+      if (parsed.ok) {
+        if (parsed.state.lang) s.lang = parsed.state.lang;
+        if (parsed.state.session && C.eraForSession(D, parsed.state.session)) s.session = parsed.state.session;
+        if (parsed.state.year) s.year = parsed.state.year;
+        s.data = parsed.state.data;
       }
     } catch (e) {}
     return s;
@@ -129,6 +129,7 @@
     sb.hidden = !state.session;
     if (state.session) { sb.textContent = sessLabel(state.session); sb.setAttribute('aria-label', t('sessionChip', { s: sessLabel(state.session) }) + ' · ' + t('change')); }
     document.getElementById('disclaimer').textContent = t('disclaimer');
+    applyThemeChrome();
     var fc = document.getElementById('footCredit'); fc.innerHTML = '';
     var parts = t('credit').split(/(\{link\}|\{me\}|\{src\})/);
     parts.forEach(function (p) {
@@ -141,12 +142,21 @@
 
   // ---------- session picker ----------
   function sessionGrid(onPick) {
-    var g = el('div', { class: 'sessions', role: 'group', 'aria-label': t('pickTitleShort') });
-    D.sessions.slice().reverse().forEach(function (s) {
-      g.appendChild(el('button', { type: 'button', class: 'sess' + (s.era === 'new' ? ' new' : ''), 'aria-pressed': String(state.session === s.id),
-        onclick: function () { onPick(s.id); } }, [el('b', { class: 'num', text: sessLabel(s.id) }), el('span', { text: eraLabel(s.era) })]));
+    var wrap = el('div', { class: 'sess-wrap' });
+    C.sessionGroups(D).forEach(function (g) {
+      var hid = 'sg-' + g.era;
+      var block = el('section', { class: 'sess-block', 'aria-labelledby': hid });
+      block.appendChild(el('h2', { id: hid, class: 'sess-head', text: t(g.era === 'old' ? 'oldBlock' : 'newBlock') }));
+      if (g.era === 'new') block.appendChild(el('p', { class: 'sess-note', text: t('newBlockNote') }));
+      var grid = el('div', { class: 'sessions', role: 'group', 'aria-labelledby': hid });
+      g.sessions.slice().reverse().forEach(function (s) {
+        grid.appendChild(el('button', { type: 'button', class: 'sess' + (s.era === 'new' ? ' new' : ''), 'aria-pressed': String(state.session === s.id),
+          onclick: function () { onPick(s.id); } }, [el('b', { class: 'num', text: sessLabel(s.id) }), el('span', { text: eraLabel(s.era) })]));
+      });
+      block.appendChild(grid);
+      wrap.appendChild(block);
     });
-    return g;
+    return wrap;
   }
   function chooseSession(id) {
     var changed = state.session !== id;
@@ -172,10 +182,11 @@
       return;
     }
     var dash = el('div', { class: 'dash fade-in' });
-    var side = el('aside', { class: 'side' }, [renderHero(), renderMix()]);
-    var right = el('section', { 'aria-label': t('gpa') }, [renderYearTabs(), renderYear(state.year), renderScale()]);
+    var side = el('aside', { class: 'side' }, [renderHero(), renderMix(), renderPlanner()]);
+    var right = el('section', { 'aria-label': t('gpa') }, [renderYearTabs(), renderYear(state.year), renderActions(), renderScale()]);
     dash.appendChild(side); dash.appendChild(right);
     main.appendChild(dash);
+    main.appendChild(renderPrintSheet());
     refresh();
   }
 
@@ -244,8 +255,9 @@
     var bar = el('div', { class: 'years', role: 'tablist', 'aria-label': t('gpa') });
     ALL.forEach(function (id) {
       var y = C.yearFor(D, state.session, id);
-      bar.appendChild(el('button', { type: 'button', role: 'tab', class: 'yt', id: 'yt-' + id, 'aria-selected': String(state.year === id), 'aria-controls': 'yearPanel', tabindex: state.year === id ? '0' : '-1',
-        onclick: function () { selectYear(id); } }, [el('span', null, [t(id + 's'), y ? null : el('span', { class: 'dot', title: t('notPubTitle'), 'aria-label': t('notPubTitle') })]), el('small', { class: 'num', 'data-ygpa': id })]));
+      var pub = !!y;
+      bar.appendChild(el('button', { type: 'button', role: 'tab', class: 'yt' + (pub ? '' : ' unpub'), id: 'yt-' + id, 'aria-selected': String(state.year === id), 'aria-controls': 'yearPanel', tabindex: state.year === id ? '0' : '-1', title: pub ? '' : t('notPubYet'),
+        onclick: function () { selectYear(id); } }, [el('span', null, [t(id + 's'), pub ? null : el('span', { class: 'dot', title: t('notPubYet'), 'aria-label': t('notPubYet') })]), el('small', { class: 'num', 'data-ygpa': id })]));
     });
     bar.addEventListener('keydown', function (e) {
       var i = ALL.indexOf(state.year), j = i;
@@ -341,8 +353,9 @@
     } else {
       body.appendChild(el('div', { class: 'empty' }, [
         el('div', { html: '<svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true"><rect x="12" y="8" width="40" height="48" rx="8" fill="var(--soft)" stroke="var(--line)" stroke-width="2"/><path d="M22 22h20M22 30h20M22 38h12" stroke="var(--line)" stroke-width="3" stroke-linecap="round"/><circle cx="46" cy="46" r="10" fill="var(--sun)"/><path d="M46 41v6M46 50.5v.5" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>' }),
-        el('h3', { text: t('notPubTitle') }),
-        el('p', { text: t('notPubText', { y: t(yid) }) })
+        el('h3', { text: t('notPubYet') }),
+        el('p', { text: t('notPubText', { y: t(yid) }) }),
+        el('p', { class: 'fallback', text: t('unofficialFallback') })
       ]));
     }
 
@@ -444,23 +457,302 @@
       var total = r.manual ? r.credits : r.totalCredits;
       document.getElementById('yBar').style.width = (total ? Math.min(100, (r.credits / total) * 100) : 0) + '%';
       var f = document.getElementById('yFacts'); f.innerHTML = '';
-      f.appendChild(el('span', { class: 'num', text: t('creditsOf', { a: n(r.credits), b: n(total || (y ? y.totalCredits : 0)) }) }));
+      if (y || r.credits) f.appendChild(el('span', { class: 'num', text: t('creditsOf', { a: n(r.credits), b: n(total || (y ? y.totalCredits : 0)) }) }));
+      var tot = y ? C.officialYearTotals(y) : null;
+      if (tot && tot.creditMarks != null) {
+        if (tot.nonCredit.length) {
+          var nc = tot.nonCredit[0];
+          f.appendChild(el('span', { class: 'num', text: t('marksPlusNc', { m: n(tot.creditMarks), name: nc.name, nm: n(nc.marks) }) }));
+        } else {
+          f.appendChild(el('span', { class: 'num', text: t('marksTotal', { m: n(tot.creditMarks) }) }));
+        }
+      }
       if (!r.manual && r.graded) f.appendChild(el('span', { class: r.fails ? 'bad' : 'good', text: r.fails ? t('fails', { n: n(r.fails) }) : t('noFails') }));
       var mn = document.getElementById('mNote'); if (mn) { mn.textContent = r.needCredits ? t('manualNeedCredits') : t('manualNote'); }
     }
-    drawBars(); drawMix();
+    drawBars(); drawMix(); updatePlanner(); updatePrintSheet();
   }
+
+  // ---------- actions, planner, export ----------
+  var plan = { target: '', remaining: '' };
+
+  function yearResultsMap() {
+    var out = {};
+    HON.forEach(function (id) { out[id] = yearResult(id); });
+    return out;
+  }
+  function autoRemain() { return C.remainingHonours(D, state.session, yearResultsMap()); }
+
+  function renderPlanner() {
+    var card = el('div', { class: 'card planner' }, [
+      el('h3', { text: t('targetTitle') }),
+      el('p', { class: 'sub', id: 'planEarned' }),
+      el('p', { class: 'sub', id: 'planHint' }),
+      el('div', { class: 'plan-fields' }, [
+        el('div', { class: 'field' }, [el('label', { for: 'planTarget', text: t('targetLbl') }), el('input', { id: 'planTarget', type: 'text', inputmode: 'decimal', autocomplete: 'off', value: plan.target, placeholder: n('3.75') })]),
+        el('div', { class: 'field' }, [el('label', { for: 'planRemain', text: t('remainingLbl') }), el('input', { id: 'planRemain', type: 'text', inputmode: 'decimal', autocomplete: 'off', value: plan.remaining })])
+      ]),
+      el('p', { class: 'plan-out', id: 'planOut', 'aria-live': 'polite' })
+    ]);
+    card.querySelector('#planTarget').addEventListener('input', function (e) { plan.target = e.target.value; updatePlanner(); });
+    card.querySelector('#planRemain').addEventListener('input', function (e) { plan.remaining = e.target.value; updatePlanner(); });
+    return card;
+  }
+  function updatePlanner() {
+    var out = document.getElementById('planOut'); if (!out) return;
+    var remInfo = autoRemain();
+    var c = cgpa();
+    var earnedEl = document.getElementById('planEarned');
+    var hint = document.getElementById('planHint');
+    var remainInput = document.getElementById('planRemain');
+    if (earnedEl) earnedEl.textContent = t('earnedLbl') + ': ' + (c.cgpa === null ? '–' : (f2(c.cgpa) + ' · ' + n(remInfo.earned) + ' ' + t('credits')));
+    if (remainInput && !plan.remaining) remainInput.placeholder = remInfo.remaining ? n(remInfo.remaining) : n('40');
+    if (hint) hint.textContent = remInfo.unknown ? t('remainingUnknown') : (remInfo.remaining ? t('remainingHint', { n: n(remInfo.remaining) }) : '');
+    var target = C.parseNum(plan.target);
+    var remain = plan.remaining.trim() === '' ? remInfo.remaining : C.parseNum(plan.remaining);
+    if (plan.target.trim() === '') { out.textContent = ''; return; }
+    if (c.cgpa === null && remInfo.earned === 0) { out.textContent = t('targetNeedCurrent'); return; }
+    var current = c.cgpa === null ? 0 : c.cgpa;
+    var earned = remInfo.earned;
+    var r = C.requiredGpa(current, earned, remain, target);
+    if (!r.ok || r.error === 'invalid') { out.textContent = t('targetInvalid'); return; }
+    if (r.error === 'no-remaining') { out.textContent = t('targetNoRemain'); return; }
+    if (r.alreadyMet) { out.textContent = t('targetAlready'); return; }
+    if (!r.possible) { out.textContent = t('targetImpossible', { t: f2(C.round2(target)), g: f2(r.required) }); return; }
+    out.textContent = t('targetNeed', { g: f2(r.required), c: n(remain) });
+  }
+
+  function renderActions() {
+    return el('div', { class: 'actions', 'aria-label': t('actions') }, [
+      el('button', { type: 'button', class: 'ghost-btn', text: t('exportPng'), onclick: exportPng }),
+      el('button', { type: 'button', class: 'ghost-btn', text: t('exportPdf'), onclick: function () { window.print(); } }),
+      el('button', { type: 'button', class: 'ghost-btn', text: t('exportJson'), onclick: exportJson }),
+      el('button', { type: 'button', class: 'ghost-btn', text: t('importJson'), onclick: function () { document.getElementById('importFile').click(); } }),
+      el('button', { type: 'button', class: 'ghost-btn danger', text: t('clearAll'), onclick: clearAllData })
+    ]);
+  }
+
+  function resultRows() {
+    var rows = [];
+    ALL.forEach(function (id) {
+      var y = C.yearFor(D, state.session, id), r = yearResult(id);
+      if (!y && r.gpa === null && !yst(id).custom.length && !yst(id).manual.on) return;
+      rows.push({ id: id, label: t(id), gpa: r.gpa, letter: r.letter, credits: r.credits, total: r.manual ? r.credits : r.totalCredits, published: !!y });
+    });
+    return rows;
+  }
+
+  function renderPrintSheet() {
+    return el('section', { class: 'print-sheet', id: 'printSheet', 'aria-hidden': 'true' });
+  }
+  function updatePrintSheet() {
+    var host = document.getElementById('printSheet'); if (!host) return;
+    host.innerHTML = '';
+    var c = cgpa();
+    host.appendChild(el('h1', { text: t('printTitle') }));
+    host.appendChild(el('p', { text: t('sessionChip', { s: sessLabel(state.session) }) + ' · ' + todayLabel() }));
+    host.appendChild(el('p', { class: 'print-cg', text: t('yourCgpa') + ' ' + (c.cgpa === null ? '–' : c.cgpa.toFixed(2)) + (c.letter ? ' · ' + c.letter : '') }));
+    var table = el('table', null, [el('thead', null, [el('tr', null, [el('th', { text: t('gpaByYear') }), el('th', { text: t('gpa') }), el('th', { text: t('credits') }), el('th', { text: t('scaleLetter') })])])]);
+    var tb = el('tbody');
+    resultRows().forEach(function (row) {
+      tb.appendChild(el('tr', null, [
+        el('td', { text: row.label + (row.published ? '' : ' · ' + t('notPubTitle')) }),
+        el('td', { class: 'num', text: row.gpa === null ? '–' : row.gpa.toFixed(2) }),
+        el('td', { class: 'num', text: row.credits ? String(row.credits) : '–' }),
+        el('td', { text: row.letter || '–' })
+      ]));
+    });
+    table.appendChild(tb);
+    host.appendChild(table);
+    host.appendChild(el('p', { class: 'print-disc', text: t('disclaimer') }));
+  }
+
+  function todayLabel() {
+    try {
+      return new Date().toLocaleDateString(state.lang === 'bn' ? 'bn-BD' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Dhaka' });
+    } catch (e) { return new Date().toISOString().slice(0, 10); }
+  }
+  function fileStamp() {
+    var d = new Date();
+    function z(n) { return (n < 10 ? '0' : '') + n; }
+    return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate());
+  }
+  function downloadBlob(blob, name) {
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1500);
+  }
+
+  function exportJson() {
+    var payload = C.exportPayload(state);
+    downloadBlob(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }), 'stats-cgpa-' + (state.session || 'backup') + '-' + fileStamp() + '.json');
+    toast(t('exportJson'));
+  }
+  function importFromFile(file) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      var parsed = C.parseImport(String(reader.result || ''));
+      if (!parsed.ok) { toast(t('importErr')); return; }
+      if (parsed.state.lang) state.lang = parsed.state.lang;
+      if (parsed.state.session && C.eraForSession(D, parsed.state.session)) state.session = parsed.state.session;
+      if (parsed.state.year) state.year = parsed.state.year;
+      state.data = parsed.state.data;
+      save(); applyLang(); render(); toast(t('imported'));
+    };
+    reader.readAsText(file);
+  }
+
+  function clearAllData() {
+    if (!confirm(t('clearAllQ'))) return;
+    try { localStorage.removeItem(KEY); localStorage.removeItem('nuStatsCgpa.theme'); } catch (e) {}
+    delete document.documentElement.dataset.theme;
+    state = { lang: state.lang, session: null, year: 'y1', data: {} };
+    plan.target = ''; plan.remaining = '';
+    applyThemeChrome(); applyLang(); render(); toast(t('clearedAll'));
+  }
+
+  function exportPng() {
+    var go = function () { drawResultCard(); };
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(go, go);
+    else go();
+  }
+  function drawResultCard() {
+    var c = cgpa();
+    var rows = resultRows();
+    var w = 900, pad = 56;
+    var h = pad + 340 + rows.length * 52 + 90;
+    var canvas = document.createElement('canvas');
+    canvas.width = w * 2; canvas.height = h * 2;
+    var ctx = canvas.getContext('2d');
+    ctx.scale(2, 2);
+    var font = (state.lang === 'bn' ? "Nikosh, 'Noto Sans Bengali', sans-serif" : "'DM Sans', system-ui, sans-serif");
+    ctx.fillStyle = '#fbf6ef';
+    ctx.fillRect(0, 0, w, h);
+    rounded(ctx, 24, 24, w - 48, h - 48, 28, '#ffffff');
+    ctx.fillStyle = '#d9653b';
+    rounded(ctx, pad, pad, 48, 48, 14, '#d9653b');
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 3.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(pad + 13, pad + 32); ctx.lineTo(pad + 21, pad + 22); ctx.lineTo(pad + 28, pad + 27); ctx.lineTo(pad + 38, pad + 14); ctx.stroke();
+    ctx.fillStyle = '#2a2420';
+    ctx.font = '700 28px ' + font;
+    ctx.fillText(t('brand'), pad + 64, pad + 26);
+    ctx.font = '500 15px ' + font;
+    ctx.fillStyle = '#7a6d63';
+    ctx.fillText(t('brandSub'), pad + 64, pad + 48);
+    ctx.font = '600 16px ' + font;
+    ctx.fillStyle = '#7a6d63';
+    ctx.fillText(t('sessionChip', { s: sessLabel(state.session) }) + '  ·  ' + todayLabel(), pad, pad + 92);
+    ctx.fillStyle = '#7a6d63';
+    ctx.font = '600 14px ' + font;
+    ctx.fillText(t('yourCgpa'), pad, pad + 140);
+    ctx.fillStyle = '#2a2420';
+    ctx.font = '700 86px ' + font;
+    ctx.fillText(c.cgpa === null ? '–' : c.cgpa.toFixed(2), pad, pad + 230);
+    if (c.letter) {
+      ctx.fillStyle = '#d9653b';
+      rounded(ctx, pad + 320, pad + 175, 64, 36, 10, '#fbe6dc');
+      ctx.fillStyle = '#d9653b';
+      ctx.font = '700 18px ' + font;
+      ctx.fillText(c.letter, pad + 338, pad + 200);
+    }
+    ctx.fillStyle = '#7a6d63';
+    ctx.font = '500 15px ' + font;
+    var sub = document.getElementById('cgSub');
+    ctx.fillText(sub ? sub.textContent : '', pad, pad + 262);
+
+    var y0 = pad + 300;
+    ctx.strokeStyle = '#ece1d4'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(pad, y0); ctx.lineTo(w - pad, y0); ctx.stroke();
+    ctx.fillStyle = '#7a6d63';
+    ctx.font = '600 13px ' + font;
+    ctx.fillText(t('gpaByYear'), pad, y0 + 28);
+    ctx.fillText(t('gpa'), pad + 280, y0 + 28);
+    ctx.fillText(t('credits'), pad + 430, y0 + 28);
+    ctx.fillText(t('scaleLetter'), pad + 600, y0 + 28);
+    rows.forEach(function (row, i) {
+      var yy = y0 + 64 + i * 48;
+      ctx.fillStyle = '#2a2420';
+      ctx.font = '600 18px ' + font;
+      ctx.fillText(row.label, pad, yy);
+      ctx.font = '600 18px DM Sans, sans-serif';
+      ctx.fillText(row.gpa === null ? '–' : row.gpa.toFixed(2), pad + 280, yy);
+      ctx.fillText(row.credits ? String(row.credits) : '–', pad + 430, yy);
+      ctx.fillText(row.letter || '–', pad + 600, yy);
+    });
+    ctx.fillStyle = '#7a6d63';
+    ctx.font = '500 13px ' + font;
+    wrapText(ctx, t('disclaimer'), pad, h - pad - 36, w - pad * 2, 20);
+    canvas.toBlob(function (blob) {
+      if (!blob) return;
+      downloadBlob(blob, 'stats-cgpa-' + (state.session || 'result') + '-' + fileStamp() + '.png');
+      toast(t('exportPng'));
+    }, 'image/png');
+  }
+  function rounded(ctx, x, y, w, h, r, fill) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+    ctx.fillStyle = fill;
+    ctx.fill();
+  }
+  function wrapText(ctx, text, x, y, max, lh) {
+    var words = text.split(' '), line = '', yy = y;
+    words.forEach(function (word, i) {
+      var test = line ? line + ' ' + word : word;
+      if (ctx.measureText(test).width > max && line) { ctx.fillText(line, x, yy); line = word; yy += lh; }
+      else line = test;
+      if (i === words.length - 1) ctx.fillText(line, x, yy);
+    });
+  }
+
+  function isDark() {
+    var th = document.documentElement.dataset.theme;
+    if (th) return th === 'dark';
+    return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  }
+  function applyThemeChrome() {
+    var dark = isDark();
+    var btn = document.getElementById('themeBtn');
+    if (btn) {
+      btn.setAttribute('aria-pressed', String(dark));
+      btn.setAttribute('aria-label', t('theme'));
+    }
+    var color = dark ? '#1b1714' : '#fbf6ef';
+    document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) { m.setAttribute('content', color); });
+  }
+
 
   // ---------- header controls ----------
   document.getElementById('langBtn').addEventListener('click', function () { state.lang = state.lang === 'en' ? 'bn' : 'en'; save(); applyLang(); render(); });
   document.getElementById('sessionBtn').addEventListener('click', openSessionDialog);
   document.getElementById('themeBtn').addEventListener('click', function () {
-    var r = document.documentElement, dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
-    r.dataset.theme = dark ? 'light' : 'dark';
-    try { localStorage.setItem('nuStatsCgpa.theme', r.dataset.theme); } catch (e) {}
+    var next = isDark() ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem('nuStatsCgpa.theme', next); } catch (e) {}
+    applyThemeChrome();
   });
   document.querySelector('.mark').addEventListener('click', function (e) { e.preventDefault(); window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' }); });
+  var importFile = document.getElementById('importFile');
+  if (importFile) importFile.addEventListener('change', function () {
+    var f = importFile.files && importFile.files[0];
+    if (f) importFromFile(f);
+    importFile.value = '';
+  });
+  if (window.matchMedia) {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
+      if (!localStorage.getItem('nuStatsCgpa.theme')) applyThemeChrome();
+    });
+  }
 
   applyLang();
+  applyThemeChrome();
   render();
 })();

@@ -18,7 +18,13 @@
   <meta name="twitter:title" content="NU Statistics CGPA Calculator">
   <meta name="twitter:description" content="GPA & CGPA for National University Statistics students, in English and Bangla.">
   <meta name="twitter:image" content="https://mamun-abdu.github.io/nu-stats-cgpa-calculator/og.png">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%23d9653b'/%3E%3Cpath d='M18 42 L28 30 L36 36 L47 20' stroke='white' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="icon" type="image/svg+xml" href="icons/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Stats CGPA">
   <link rel="preload" href="fonts/DMSans-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.css">
   <script>
@@ -69,9 +75,18 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+  <input type="file" id="importFile" accept="application/json,.json" hidden>
   <script src="data.js"></script>
   <script src="calc.js"></script>
   <script src="i18n.js"></script>
   <script src="app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        var url = new URL('sw.js', document.baseURI);
+        navigator.serviceWorker.register(url.href).catch(function () {});
+      });
+    }
+  </script>
 </body>
 </html>

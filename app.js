@@ -315,7 +315,7 @@
       var qs = gradeSelect('', t('quickFill')); qs.className = 'ghost-btn'; qs.style.cssText = ''; qs.firstChild.textContent = t('quickFill');
       qs.addEventListener('change', function () {
         var g = qs.value; if (!g) return;
-        y.courses.forEach(function (c) { if (isCounted(yid, c) && !(s.c[c.code] || {}).g) s.c[c.code] = { g: g, m: '' }; });
+        y.courses.forEach(function (c) { if (isCounted(yid, c) && !(s.c[c.code] || {}).g) s.c[c.code] = { g: g }; });
         save(); selectYear(yid); toast(t('filled', { g: g }));
       });
       body.appendChild(el('div', { class: 'tools' }, [qs, el('button', { type: 'button', class: 'ghost-btn', text: t('reset'), onclick: function () {
@@ -385,7 +385,7 @@
   }
 
   function courseRow(yid, c, g, groupUpdate) {
-    var s = yst(yid), e = s.c[c.code] || {}, full = c.marks || 100;
+    var s = yst(yid), e = s.c[c.code] || {};
     var counted = isCounted(yid, c);
     var meta = el('div', { class: 'r-meta num' }, [el('span', { text: c.code }), c.nonCredit ? null : el('span', { text: n(c.credits) + ' ' + t('cr') }), c.marks ? el('span', { text: n(c.marks) + ' ' + t('marks') }) : null]);
     var row = el('div', { class: 'row' + (counted || c.nonCredit ? '' : ' off'), role: 'listitem' });
@@ -402,18 +402,9 @@
       meta.appendChild(el('label', null, [cb, t('took')]));
     }
     var uid = yid + '-' + c.code;
-    var mk = el('input', { class: 'in num', id: 'm-' + uid, type: 'text', inputmode: 'decimal', autocomplete: 'off', placeholder: t('marksPh'), value: e.m || '', 'aria-label': c.name + ' · ' + t('marksOf', { m: n(full) }), title: t('marksOf', { m: n(full) }) });
     var sel = gradeSelect(e.g || '', t('gradeFor', { c: c.name })); sel.id = 'g-' + uid;
-    mk.addEventListener('input', function () {
-      var raw = mk.value, v = C.parseNum(raw), gr = raw.trim() === '' ? null : C.gradeFromMarks(v, full);
-      var bad = raw.trim() !== '' && !gr;
-      mk.setAttribute('aria-invalid', String(bad)); mk.title = bad ? t('marksErr', { m: n(full) }) : t('marksOf', { m: n(full) });
-      s.c[c.code] = { g: gr ? gr.letter : '', m: raw }; sel.value = gr ? gr.letter : ''; paintSel(sel);
-      save(); refresh();
-    });
-    mk.addEventListener('blur', function () { if (mk.getAttribute('aria-invalid') === 'true') toast(t('marksErr', { m: n(full) })); });
-    sel.addEventListener('change', function () { s.c[c.code] = { g: sel.value, m: '' }; mk.value = ''; mk.removeAttribute('aria-invalid'); paintSel(sel); save(); refresh(); });
-    row.appendChild(el('div', { class: 'ctl' }, [mk, sel]));
+    sel.addEventListener('change', function () { s.c[c.code] = { g: sel.value }; paintSel(sel); save(); refresh(); });
+    row.appendChild(el('div', { class: 'ctl' }, [sel]));
     return row;
   }
 

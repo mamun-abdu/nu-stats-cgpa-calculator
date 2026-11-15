@@ -16,7 +16,7 @@ A friendly GPA and CGPA calculator for **National University (Bangladesh) B.Sc. 
    | 2013–14 … 2023–24 | effective from 2013–14 | 28 cr | 28 cr (+ non-credit English) | 32 cr | 40 cr | 36 cr |
    | 2024–25 … 2026–27 | effective from 2024–25 | 36 cr | 38 cr | *not published yet* | *not published yet* | *not published yet* |
 
-3. For each course, type your **marks** (auto-graded against the paper's full marks) or pick a **grade**.
+3. For each course, pick a **grade**.
 4. See your year GPA and your Honours **CGPA** update live, with a GPA-by-year chart and a grade-mix donut.
 
 When a year's syllabus isn't published yet, or you only know your published result, you can **add your own courses** (name, credits, grade) or **type your published GPA** for that year. Both options work on every year.
@@ -26,7 +26,7 @@ When a year's syllabus isn't published yet, or you only know your published resu
 - Session picker with both syllabus eras
 - 4th-year optional papers and labs (“any two”) and Masters optional papers (“any three”): only the ones you tick count
 - Non-credit papers are shown but left out of the GPA
-- Marks or grade entry; accepts Bangla digits (৭৮, ৩.৫০)
+- Grade dropdowns for each course; numeric fields accept Bangla digits (৩.৫০)
 - Full English / বাংলা interface (remembered)
 - Light and dark themes, small animations that respect *reduced motion*
 - Saves automatically in your browser (localStorage). Nothing is sent anywhere.

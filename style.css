@@ -203,9 +203,7 @@ select.ghost-btn { padding-right: 12px; }
 .r-meta input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; }
 .ctl { display: flex; gap: 6px; align-items: flex-start; }
 .ctl .err { position: absolute; }
-.in { width: 66px; height: 40px; border-radius: 12px; border: 1px solid var(--line); background: var(--soft); text-align: center; padding: 0 6px; font-size: .95rem; transition: border-color .2s, box-shadow .2s; }
-.in:focus, .gsel:focus, .field input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
-.in[aria-invalid="true"] { border-color: var(--bad); background: var(--bad-soft); }
+.gsel:focus, .field input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
 .gsel { appearance: none; -webkit-appearance: none; height: 40px; min-width: 64px; padding: 0 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-weight: 700; text-align: center; text-align-last: center; cursor: pointer; transition: background .2s, color .2s, border-color .2s; }
 .gsel.set { border-color: transparent; }
 .nc { font-size: .74rem; color: var(--muted); font-style: italic; }

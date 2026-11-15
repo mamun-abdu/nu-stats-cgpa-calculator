@@ -55,13 +55,6 @@
     return GRADES[GRADES.length - 1];
   }
 
-  /** Map obtained marks out of fullMarks (default 100) to a grade. */
-  function gradeFromMarks(obtained, fullMarks) {
-    var full = fullMarks > 0 ? fullMarks : 100;
-    if (typeof obtained !== 'number' || !(obtained >= 0) || obtained > full) return null;
-    return gradeFromPercent((obtained / full) * 100);
-  }
-
   /** Letter grade for a GPA/CGPA value on the NU 4.00 scale. */
   function letterFromGPA(gpa) {
     if (typeof gpa !== 'number' || !(gpa >= 0)) return null;
@@ -149,7 +142,6 @@
     round2: round2,
     gradeByLetter: gradeByLetter,
     gradeFromPercent: gradeFromPercent,
-    gradeFromMarks: gradeFromMarks,
     letterFromGPA: letterFromGPA,
     computeGPA: computeGPA,
     computeCGPA: computeCGPA

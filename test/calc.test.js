@@ -22,16 +22,6 @@ t('percent -> grade boundaries', () => {
   assert.strictEqual(C.gradeFromPercent(-1), null);
 });
 
-t('marks out of 50/75/25 scale correctly', () => {
-  assert.strictEqual(C.gradeFromMarks(40, 50).letter, 'A+');
-  assert.strictEqual(C.gradeFromMarks(37, 50).letter, 'A-');
-  assert.strictEqual(C.gradeFromMarks(19, 50).letter, 'F');
-  assert.strictEqual(C.gradeFromMarks(60, 75).letter, 'A+');
-  assert.strictEqual(C.gradeFromMarks(10, 25).letter, 'D');
-  assert.strictEqual(C.gradeFromMarks(51, 50), null);
-  assert.strictEqual(C.gradeFromMarks(null, 50), null);
-});
-
 t('letter from GPA', () => {
   assert.strictEqual(C.letterFromGPA(4), 'A+');
   assert.strictEqual(C.letterFromGPA(3.74), 'A-');

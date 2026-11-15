@@ -106,4 +106,115 @@ t('grade distribution', () => {
   assert.strictEqual(Object.keys(d).length, 10);
 });
 
+
+t('session groups split old then new, and unpublished years are flagged', () => {
+  const g = C.sessionGroups(D);
+  assert.strictEqual(g.length, 2);
+  assert.strictEqual(g[0].era, 'old');
+  assert.strictEqual(g[0].sessions.length, 11);
+  assert.strictEqual(g[0].sessions[0].id, '2013-2014');
+  assert.strictEqual(g[0].sessions[10].id, '2023-2024');
+  assert.strictEqual(g[1].era, 'new');
+  assert.deepStrictEqual(g[1].sessions.map(s => s.id), ['2024-2025', '2025-2026', '2026-2027']);
+  assert.strictEqual(C.yearPublished(D, '2023-2024', 'y4'), true);
+  assert.strictEqual(C.yearPublished(D, '2023-2024', 'ms'), true);
+  assert.strictEqual(C.yearPublished(D, '2024-2025', 'y1'), true);
+  assert.strictEqual(C.yearPublished(D, '2024-2025', 'y2'), true);
+  assert.strictEqual(C.yearPublished(D, '2024-2025', 'y3'), false);
+  assert.strictEqual(C.yearPublished(D, '2024-2025', 'y4'), false);
+  assert.strictEqual(C.yearPublished(D, '2024-2025', 'ms'), false);
+  assert.strictEqual(C.yearPublished(D, '2012-2013', 'y1'), false);
+});
+
+t('official year totals exclude non-credit English and unchosen optionals', () => {
+  const y2 = C.officialYearTotals(C.yearFor(D, '2023-2024', 'y2'));
+  assert.strictEqual(y2.creditMarks, 700);
+  assert.strictEqual(y2.credits, 28);
+  assert.strictEqual(y2.nonCredit.length, 1);
+  assert.strictEqual(y2.nonCredit[0].code, '221109');
+  assert.strictEqual(y2.nonCredit[0].marks, 100);
+  const y1 = C.officialYearTotals(C.yearFor(D, '2023-2024', 'y1'));
+  assert.strictEqual(y1.creditMarks, 700);
+  assert.strictEqual(y1.nonCredit.length, 0);
+  const y4 = C.officialYearTotals(C.yearFor(D, '2023-2024', 'y4'));
+  assert.strictEqual(y4.creditMarks, 1000);
+  assert.strictEqual(y4.credits, 40);
+  const ny1 = C.officialYearTotals(C.yearFor(D, '2024-2025', 'y1'));
+  assert.strictEqual(ny1.creditMarks, 900);
+  const ny2 = C.officialYearTotals(C.yearFor(D, '2024-2025', 'y2'));
+  assert.strictEqual(ny2.creditMarks, 950);
+  assert.strictEqual(C.officialYearTotals(null), null);
+});
+
+t('target GPA planner covers met, possible, impossible, and invalid cases', () => {
+  const even = C.requiredGpa(3.5, 36, 36, 3.75);
+  assert.strictEqual(even.ok, true);
+  assert.strictEqual(even.required, 4);
+  assert.strictEqual(even.possible, true);
+  assert.strictEqual(even.alreadyMet, false);
+  const hard = C.requiredGpa(3.5, 36, 36, 3.9);
+  assert.strictEqual(hard.possible, false);
+  assert.strictEqual(hard.error, 'impossible');
+  assert.strictEqual(hard.required, 4.3);
+  const met = C.requiredGpa(3.8, 100, 8, 3.5);
+  assert.strictEqual(met.alreadyMet, true);
+  assert.strictEqual(met.required, 0);
+  const done = C.requiredGpa(3.5, 128, 0, 3.5);
+  assert.strictEqual(done.alreadyMet, true);
+  assert.strictEqual(done.required, null);
+  const stuck = C.requiredGpa(3.0, 128, 0, 3.5);
+  assert.strictEqual(stuck.possible, false);
+  assert.strictEqual(stuck.error, 'no-remaining');
+  assert.strictEqual(C.requiredGpa(3, 10, 10, 5).error, 'invalid');
+  assert.strictEqual(C.requiredGpa(3, -1, 10, 3).error, 'invalid');
+  assert.strictEqual(C.requiredGpa(null, 10, 10, 3).error, 'invalid');
+});
+
+t('remaining honours credits treat unpublished years as unknown', () => {
+  const oldDone = C.remainingHonours(D, '2023-2024', {
+    y1: { gpa: 3.5, credits: 28, totalCredits: 28 },
+    y2: { gpa: 3.25, credits: 28, totalCredits: 28 }
+  });
+  assert.strictEqual(oldDone.earned, 56);
+  assert.strictEqual(oldDone.remaining, 72);
+  assert.strictEqual(oldDone.unknown, false);
+  const partial = C.remainingHonours(D, '2023-2024', {
+    y1: { gpa: 3.5, credits: 16, totalCredits: 28 }
+  });
+  assert.strictEqual(partial.earned, 16);
+  assert.strictEqual(partial.remaining, 12 + 28 + 32 + 40);
+  const neu = C.remainingHonours(D, '2024-2025', {
+    y1: { gpa: 3.5, credits: 36, totalCredits: 36 }
+  });
+  assert.strictEqual(neu.earned, 36);
+  assert.strictEqual(neu.remaining, 38);
+  assert.strictEqual(neu.unknown, true);
+});
+
+t('export payload and import validation, including leftover marks fields', () => {
+  const payload = C.exportPayload({
+    lang: 'bn',
+    session: '2023-2024',
+    year: 'y2',
+    data: { '2023-2024': { y1: { c: { '213601': { g: 'A+', m: '85' } }, sel: null, custom: [], manual: { on: false, gpa: '', credits: '' } } } }
+  }, '2026-11-15T10:00:00.000Z');
+  assert.strictEqual(payload.app, 'nu-stats-cgpa-calculator');
+  assert.strictEqual(payload.v, 2);
+  assert.strictEqual(payload.exportedAt, '2026-11-15T10:00:00.000Z');
+  assert.strictEqual(payload.lang, 'bn');
+  const parsed = C.parseImport(JSON.stringify(payload));
+  assert.strictEqual(parsed.ok, true);
+  assert.strictEqual(parsed.state.lang, 'bn');
+  assert.strictEqual(parsed.state.session, '2023-2024');
+  assert.deepStrictEqual(parsed.state.data['2023-2024'].y1.c['213601'], { g: 'A+' });
+  assert.strictEqual(parsed.state.data['2023-2024'].y1.c['213601'].m, undefined);
+  const raw = C.parseImport({ lang: 'en', session: '2024-2025', year: 'y1', data: { '2024-2025': { y1: { c: { '213601': { g: 'B', m: '60' } } } } } });
+  assert.strictEqual(raw.ok, true);
+  assert.deepStrictEqual(raw.state.data['2024-2025'].y1.c['213601'], { g: 'B' });
+  assert.strictEqual(C.parseImport('not-json').error, 'invalid-json');
+  assert.strictEqual(C.parseImport('{}').error, 'invalid-shape');
+  assert.strictEqual(C.parseImport({ lang: 'fr', session: '2023-2024', data: {} }).error, 'invalid-lang');
+  assert.strictEqual(C.parseImport({ lang: 'en', year: 'y9', data: {} }).error, 'invalid-year');
+});
+
 console.log(`\nAll ${n} test groups passed.`);

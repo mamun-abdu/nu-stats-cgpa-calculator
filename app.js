@@ -5,7 +5,7 @@
   var KEY = 'nuStatsCgpa.v2';
   var HON = ['y1', 'y2', 'y3', 'y4'];
   var ALL = ['y1', 'y2', 'y3', 'y4', 'ms'];
-  var GCOL = { 'A+': '#0f6b62', 'A': '#16796f', 'A-': '#2a7f8f', 'B+': '#33729c', 'B': '#3f63a3', 'B-': '#5257a3', 'C+': '#6a4f9a', 'C': '#7c4a8a', 'D': '#8f4570', 'F': '#b42318' };
+  var GCOL = { 'A+': '#0f6b62', 'A': '#2b7f5a', 'A-': '#2a7f8f', 'B+': '#33729c', 'B': '#3f63a3', 'B-': '#5257a3', 'C+': '#6a4f9a', 'C': '#7c4a8a', 'D': '#8f4570', 'F': '#b42318' };
   var DARKTXT = {};
   var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -643,11 +643,13 @@
     ctx.font = '600 86px ' + font;
     ctx.fillText(c.cgpa === null ? '–' : c.cgpa.toFixed(2), pad, pad + 230);
     if (c.letter) {
-      ctx.fillStyle = '#0f766e';
-      rounded(ctx, pad + 320, pad + 175, 64, 36, 10, '#e1f1ef');
+      var bx = pad + ctx.measureText(c.cgpa === null ? '–' : c.cgpa.toFixed(2)).width + 24;
+      rounded(ctx, bx, pad + 175, 64, 36, 10, '#e1f1ef');
       ctx.fillStyle = '#0f766e';
       ctx.font = '600 18px ' + font;
-      ctx.fillText(c.letter, pad + 338, pad + 200);
+      ctx.textAlign = 'center';
+      ctx.fillText(c.letter, bx + 32, pad + 200);
+      ctx.textAlign = 'left';
     }
     ctx.fillStyle = '#55636c';
     ctx.font = '400 15px ' + font;

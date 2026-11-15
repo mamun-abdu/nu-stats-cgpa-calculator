@@ -80,19 +80,13 @@ node test/calc.test.js
 | File | What it does |
 |---|---|
 | `index.html` | Page shell and meta tags |
-| `style.css` | Styles (mobile first), light/dark themes, font faces |
+| `style.css` | Styles (mobile first), light/dark themes |
 | `data.js` | Sessions, syllabus eras, every year's courses, grading scale |
 | `calc.js` | Pure calculation logic (shared with tests) |
 | `i18n.js` | English and Bangla UI text |
 | `app.js` | Interface, charts, saving, export |
 | `manifest.webmanifest`, `sw.js`, `icons/` | PWA install and offline cache, plus favicons |
-| `fonts/` | Self-hosted Nikosh (Bangla) and DM Sans (Latin); see `fonts/README.md` |
 | `test/calc.test.js` | Node tests |
-
-## Fonts
-
-- **Nikosh 2** by the Bangladesh Election Commission, used for Bangla text. Redistributed unmodified under SIL OFL 1.0.
-- **DM Sans**, used for Latin text, under SIL OFL 1.1.
 
 ## Disclaimer
 
@@ -101,4 +95,4 @@ This is an unofficial calculator. Your official result is whatever National Univ
 
 ## License
 
-Code: [MIT](LICENSE) © Mamun Abdu. Font files keep their own licenses (see `fonts/README.md`).
+Code: [MIT](LICENSE) © Mamun Abdu.

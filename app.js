@@ -619,7 +619,7 @@
     canvas.width = w * 2; canvas.height = h * 2;
     var ctx = canvas.getContext('2d');
     ctx.scale(2, 2);
-    var font = (state.lang === 'bn' ? "Nikosh, 'Noto Sans Bengali', sans-serif" : "'DM Sans', system-ui, sans-serif");
+    var font = getComputedStyle(document.documentElement).getPropertyValue('--font').trim() || 'sans-serif';
     ctx.fillStyle = '#fbf6ef';
     ctx.fillRect(0, 0, w, h);
     rounded(ctx, 24, 24, w - 48, h - 48, 28, '#ffffff');
@@ -668,7 +668,6 @@
       ctx.fillStyle = '#2a2420';
       ctx.font = '600 18px ' + font;
       ctx.fillText(row.label, pad, yy);
-      ctx.font = '600 18px DM Sans, sans-serif';
       ctx.fillText(row.gpa === null ? '–' : row.gpa.toFixed(2), pad + 280, yy);
       ctx.fillText(row.credits ? String(row.credits) : '–', pad + 430, yy);
       ctx.fillText(row.letter || '–', pad + 600, yy);

@@ -168,10 +168,8 @@ dialog[open] { animation: pop .25s var(--ease); }
 .manual { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; padding: 14px; border-radius: 12px; background: var(--soft); }
 .manual p { grid-column: 1 / -1; margin: 0; font-size: .82rem; color: var(--muted); }
 
-.tools { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
 .ghost-btn { height: 36px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: transparent; cursor: pointer; font-size: .85rem; font-weight: 600; color: var(--muted); }
 .ghost-btn:hover { color: var(--ink); border-color: var(--accent); }
-select.ghost-btn { padding-right: 12px; }
 
 .group { margin-top: 22px; }
 .gh { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin: 0 2px 6px; }
@@ -265,7 +263,7 @@ th { font-size: .75rem; color: var(--muted); font-weight: 600; }
 .print-sheet { display: none; }
 
 @media print {
-  .bar, .years, .tools, .switch, .toast, .skip, .actions, .planner, .ctl, .ghost-btn, .round-btn, .chip-btn, #themeBtn, #langBtn, #sessionBtn, .scale-body, details.card, .mix { display: none !important; }
+  .bar, .years, .switch, .toast, .skip, .actions, .planner, .ctl, .ghost-btn, .round-btn, .chip-btn, #themeBtn, #langBtn, #sessionBtn, .scale-body, details.card, .mix { display: none !important; }
   .print-sheet { display: block !important; margin: 0 0 24px; }
   .print-sheet table { width: 100%; border-collapse: collapse; }
   .print-sheet th, .print-sheet td { text-align: left; padding: 6px 4px; border-bottom: 1px solid #ccc; }

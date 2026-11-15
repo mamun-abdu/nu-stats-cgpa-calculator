@@ -344,17 +344,6 @@
     mg.addEventListener('input', onMan); mc.addEventListener('input', onMan);
 
     if (y) {
-      var qs = gradeSelect('', t('quickFill')); qs.className = 'ghost-btn'; qs.style.cssText = ''; qs.firstChild.textContent = t('quickFill');
-      qs.addEventListener('change', function () {
-        var g = qs.value; if (!g) return;
-        y.courses.forEach(function (c) { if (isCounted(yid, c) && !(s.c[c.code] || {}).g) s.c[c.code] = { g: g }; });
-        save(); selectYear(yid); toast(t('filled', { g: g }));
-      });
-      body.appendChild(el('div', { class: 'tools' }, [qs, el('button', { type: 'button', class: 'ghost-btn', text: t('reset'), onclick: function () {
-        if (!confirm(t('resetQ', { y: t(yid) }))) return;
-        state.data[state.session][yid] = null; save(); selectYear(yid); toast(t('cleared'));
-      } })]));
-
       var groups = [], idx = {};
       y.courses.forEach(function (c) { var k = c.section || ''; if (!(k in idx)) { idx[k] = groups.length; groups.push({ key: k, pick: c.pick || 0, courses: [] }); } groups[idx[k]].courses.push(c); });
       groups.forEach(function (g) {

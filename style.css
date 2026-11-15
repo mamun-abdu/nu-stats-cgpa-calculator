@@ -118,7 +118,6 @@ dialog[open] { animation: pop .25s var(--ease); }
 .chart { margin-top: 18px; }
 .chart h3, .mix h3 { font-size: .8rem; color: var(--muted); font-weight: 600; margin: 0 0 8px;  }
 .bars rect.b { fill: var(--accent); transition: y .6s var(--ease), height .6s var(--ease); }
-.bars rect.ms { fill: var(--sage); }
 .bars rect.ghost { fill: none; stroke: var(--line); stroke-dasharray: 4 4; }
 .bars text { fill: var(--muted); font: 600 11px var(--font); }
 .bars text.v { fill: var(--ink); }
@@ -137,6 +136,9 @@ dialog[open] { animation: pop .25s var(--ease); }
 .legend .c { color: var(--muted); }
 
 /* Year switcher */
+.levels { display: flex; gap: 6px; padding: 4px; background: var(--soft); border-radius: 12px; margin: 8px 0 4px; max-width: 520px; }
+.lv { flex: 1; border: 0; background: transparent; border-radius: 10px; padding: 9px 12px; cursor: pointer; font-weight: 600; font-size: .92rem; color: var(--muted); }
+.lv[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
 .years { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 4px; background: var(--soft); border-radius: 12px; }
 .years::-webkit-scrollbar { display: none; }
 .yt { flex: 1 0 auto; border: 0; background: transparent; border-radius: 12px; padding: 8px 12px; cursor: pointer; font-weight: 600; font-size: .92rem; color: var(--muted); display: flex; flex-direction: column; align-items: center; line-height: 1.2; min-height: 48px; justify-content: center; transition: background .2s, color .2s; }
@@ -263,7 +265,7 @@ th { font-size: .75rem; color: var(--muted); font-weight: 600; }
 .print-sheet { display: none; }
 
 @media print {
-  .bar, .years, .switch, .toast, .skip, .actions, .planner, .ctl, .ghost-btn, .round-btn, .chip-btn, #themeBtn, #langBtn, #sessionBtn, .scale-body, details.card, .mix { display: none !important; }
+  .bar, .levels, .years, .switch, .toast, .skip, .actions, .planner, .ctl, .ghost-btn, .round-btn, .chip-btn, #themeBtn, #langBtn, #sessionBtn, .scale-body, details.card, .mix { display: none !important; }
   .print-sheet { display: block !important; margin: 0 0 24px; }
   .print-sheet table { width: 100%; border-collapse: collapse; }
   .print-sheet th, .print-sheet td { text-align: left; padding: 6px 4px; border-bottom: 1px solid #ccc; }

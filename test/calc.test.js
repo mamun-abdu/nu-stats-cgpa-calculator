@@ -235,4 +235,41 @@ t('old saved data with custom courses loads, custom courses are dropped', () => 
   assert.deepStrictEqual(r.state.data['2023-2024'].y1.c, { '213601': { g: 'A' } });
 });
 
+t('honours and masters never feed into each other', () => {
+  assert.deepStrictEqual(C.LEVELS.hons, ['y1', 'y2', 'y3', 'y4']);
+  assert.deepStrictEqual(C.LEVELS.ms, ['ms']);
+  assert.strictEqual(C.levelOf('ms'), 'ms');
+  assert.strictEqual(C.levelOf('y4'), 'hons');
+  const yrs = { y1: { gpa: 3.0, credits: 28 }, y2: { gpa: 3.0, credits: 28 }, ms: { gpa: 4.0, credits: 36 } };
+  const h = C.levelCgpa(yrs, 'hons');
+  assert.strictEqual(h.cgpa, 3.0);
+  assert.strictEqual(h.credits, 56);
+  const m = C.levelCgpa(yrs, 'ms');
+  assert.strictEqual(m.cgpa, 4.0);
+  assert.strictEqual(m.credits, 36);
+  assert.strictEqual(C.levelCgpa({ ms: { gpa: 4, credits: 36 } }, 'hons').cgpa, null);
+  assert.strictEqual(C.levelCgpa({ y1: { gpa: 3, credits: 28 } }, 'ms').cgpa, null);
+  const letters = { y1: ['A', 'B'], y4: ['A+'], ms: ['F', 'F'] };
+  assert.deepStrictEqual(C.levelLetters(letters, 'hons'), ['A', 'B', 'A+']);
+  assert.deepStrictEqual(C.levelLetters(letters, 'ms'), ['F', 'F']);
+  // remaining-credit planner only looks at honours years
+  const rem = C.remainingHonours(D, '2023-2024', { y1: { gpa: 3, credits: 28, totalCredits: 28 }, ms: { gpa: 4, credits: 36, totalCredits: 36 } });
+  assert.strictEqual(rem.earned, 28);
+  assert.strictEqual(rem.remaining, 28 + 32 + 40);
+});
+
+t('old saves with Masters as the open tab migrate to the Masters section', () => {
+  const r = C.parseImport({ lang: 'en', session: '2023-2024', year: 'ms', data: { '2023-2024': { ms: { c: { '313601': { g: 'A' } } }, y1: { c: { '213601': { g: 'B' } } } } } });
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.state.level, 'ms');
+  assert.strictEqual(r.state.year, 'y1');
+  assert.deepStrictEqual(r.state.data['2023-2024'].ms.c, { '313601': { g: 'A' } });
+  assert.deepStrictEqual(r.state.data['2023-2024'].y1.c, { '213601': { g: 'B' } });
+  assert.strictEqual(C.parseImport({ session: '2023-2024', year: 'y2', data: {} }).state.level, 'hons');
+  assert.strictEqual(C.parseImport({ level: 'ms', data: {} }).state.level, 'ms');
+  assert.strictEqual(C.parseImport({ level: 'phd', data: {} }).error, 'invalid-level');
+  const p = C.exportPayload({ lang: 'en', session: '2023-2024', year: 'y1', level: 'ms', data: {} });
+  assert.strictEqual(p.level, 'ms');
+});
+
 console.log(`\nAll ${n} test groups passed.`);

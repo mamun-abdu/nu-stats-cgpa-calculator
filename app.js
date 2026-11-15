@@ -4,7 +4,6 @@
   var D = window.NU_DATA, C = window.NUCalc, STR = window.NU_STR;
   var KEY = 'nuStatsCgpa.v2';
   var HON = ['y1', 'y2', 'y3', 'y4'];
-  var ALL = ['y1', 'y2', 'y3', 'y4', 'ms'];
   var GCOL = { 'A+': '#0f6b62', 'A': '#2b7f5a', 'A-': '#2a7f8f', 'B+': '#33729c', 'B': '#3f63a3', 'B-': '#5257a3', 'C+': '#6a4f9a', 'C': '#7c4a8a', 'D': '#8f4570', 'F': '#b42318' };
   var DARKTXT = {};
   var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -12,13 +11,14 @@
   // ---------- state ----------
   var state = load();
   function load() {
-    var s = { lang: (navigator.language || '').indexOf('bn') === 0 ? 'bn' : 'en', session: null, year: 'y1', data: {} };
+    var s = { lang: (navigator.language || '').indexOf('bn') === 0 ? 'bn' : 'en', session: null, year: 'y1', level: 'hons', data: {} };
     try {
       var parsed = C.parseImport(localStorage.getItem(KEY) || '');
       if (parsed.ok) {
         if (parsed.state.lang) s.lang = parsed.state.lang;
         if (parsed.state.session && C.eraForSession(D, parsed.state.session)) s.session = parsed.state.session;
         if (parsed.state.year) s.year = parsed.state.year;
+        s.level = parsed.state.level;
         s.data = clampAllSel(parsed.state.data);
       }
     } catch (e) {}
@@ -125,15 +125,23 @@
     }
     return r;
   }
-  function cgpa() { return C.computeCGPA(HON.map(function (id) { var r = yearResult(id); return { gpa: r.gpa, credits: r.credits }; })); }
+  // Which programme is on screen: Honours (y1-y4) or Masters. They never mix.
+  function lv() { return state.level === 'ms' ? 'ms' : 'hons'; }
+  function curYear() { return lv() === 'ms' ? 'ms' : (HON.indexOf(state.year) >= 0 ? state.year : 'y1'); }
+  function cgpa() {
+    var map = {};
+    C.LEVELS[lv()].forEach(function (id) { var r = yearResult(id); map[id] = { gpa: r.gpa, credits: r.credits }; });
+    return C.levelCgpa(map, lv());
+  }
   function allLetters() {
-    var out = [];
-    ALL.forEach(function (yid) {
+    var byYear = {};
+    C.LEVELS[lv()].forEach(function (yid) {
+      var out = byYear[yid] = [];
       if (yst(yid).manual.on) return;
       var y = C.yearFor(D, state.session, yid), s = yst(yid);
       if (y) y.courses.forEach(function (c) { var g = (s.c[c.code] || {}).g; if (g && isCounted(yid, c)) out.push(g); });
     });
-    return out;
+    return C.levelLetters(byYear, lv());
   }
 
   // ---------- chrome (header, footer, lang) ----------
@@ -202,31 +210,42 @@
       return;
     }
     var dash = el('div', { class: 'dash fade-in' });
-    var side = el('aside', { class: 'side' }, [renderHero(), renderMix(), renderPlanner()]);
-    var right = el('section', { 'aria-label': t('gpa') }, [renderYearTabs(), renderYear(state.year), renderActions(), renderScale()]);
+    var hons = lv() === 'hons';
+    var side = el('aside', { class: 'side' }, [renderHero(), renderMix(), hons ? renderPlanner() : null]);
+    var right = el('section', { 'aria-label': t('gpa') }, [hons ? renderYearTabs() : null, renderYear(curYear()), renderActions(), renderScale()]);
     dash.appendChild(side); dash.appendChild(right);
+    main.appendChild(renderLevelSwitch());
     main.appendChild(dash);
     main.appendChild(renderPrintSheet());
     refresh();
   }
 
-  // Hero: CGPA + bar chart
+  function renderLevelSwitch() {
+    var wrap = el('div', { class: 'levels', role: 'group', 'aria-label': t('programme') });
+    [['hons', 'levelHons'], ['ms', 'levelMs']].forEach(function (p) {
+      wrap.appendChild(el('button', { type: 'button', class: 'lv', id: 'lv-' + p[0], 'aria-pressed': String(lv() === p[0]),
+        onclick: function () { if (lv() === p[0]) return; state.level = p[0]; save(); render(); } }, [t(p[1])]));
+    });
+    return wrap;
+  }
+
+  // Hero: CGPA, plus the year chart for Honours
   function renderHero() {
     var big = el('div', { class: 'big num', id: 'cgVal', 'aria-live': 'polite' });
     return el('div', { class: 'card hero' }, [
       el('div', { class: 'hero-top' }, [
-        el('div', null, [el('div', { class: 'eyebrow', text: t('yourCgpa') }), big]),
+        el('div', null, [el('div', { class: 'eyebrow', text: t(lv() === 'ms' ? 'yourMsCgpa' : 'yourCgpa') }), big]),
         el('span', { class: 'badge', id: 'cgLetter' })
       ]),
       el('p', { class: 'sub', id: 'cgSub' }),
-      el('div', { class: 'chart' }, [el('h3', { text: t('gpaByYear') }), el('div', { id: 'bars' })])
+      lv() === 'hons' ? el('div', { class: 'chart' }, [el('h3', { text: t('gpaByYear') }), el('div', { id: 'bars' })]) : null
     ]);
   }
   function drawBars() {
     var host = document.getElementById('bars'); if (!host) return;
     var W = 300, H = 140, pad = 22, base = H - 22, top = 18;
     var svg = sv('svg', { viewBox: '0 0 ' + W + ' ' + H, width: '100%', class: 'bars', role: 'img' });
-    var labels = [], ids = ALL.filter(function (id) { return id !== 'ms' || yearResult('ms').gpa !== null; });
+    var labels = [], ids = HON;
     var bw = Math.min(38, (W - pad * 2) / ids.length - 14), step = (W - pad * 2) / ids.length;
     svg.appendChild(sv('line', { x1: pad - 6, x2: W - pad + 6, y1: base, y2: base }));
     ids.forEach(function (id, i) {
@@ -234,7 +253,7 @@
       var h = r.gpa === null ? 0 : (r.gpa / 4) * (base - top);
       if (r.gpa === null) svg.appendChild(sv('rect', { x: x, y: top, width: bw, height: base - top, rx: 8, class: 'ghost' }));
       else {
-        svg.appendChild(sv('rect', { x: x, y: base - h, width: bw, height: h, rx: 8, class: 'b' + (id === 'ms' ? ' ms' : '') }));
+        svg.appendChild(sv('rect', { x: x, y: base - h, width: bw, height: h, rx: 8, class: 'b' }));
         var v = sv('text', { x: x + bw / 2, y: base - h - 5, 'text-anchor': 'middle', class: 'v' }); v.textContent = f2(r.gpa); svg.appendChild(v);
       }
       var lt = sv('text', { x: x + bw / 2, y: H - 6, 'text-anchor': 'middle' }); lt.textContent = t(id + 's'); svg.appendChild(lt);
@@ -273,17 +292,17 @@
   // Year tabs
   function renderYearTabs() {
     var bar = el('div', { class: 'years', role: 'tablist', 'aria-label': t('gpa') });
-    ALL.forEach(function (id) {
+    HON.forEach(function (id) {
       var y = C.yearFor(D, state.session, id);
       var pub = !!y;
       bar.appendChild(el('button', { type: 'button', role: 'tab', class: 'yt' + (pub ? '' : ' unpub'), id: 'yt-' + id, 'aria-selected': String(state.year === id), 'aria-controls': 'yearPanel', tabindex: state.year === id ? '0' : '-1', title: pub ? '' : t('notPubYet'),
         onclick: function () { selectYear(id); } }, [el('span', null, [t(id + 's'), pub ? null : el('span', { class: 'dot', title: t('notPubYet'), 'aria-label': t('notPubYet') })]), el('small', { class: 'num', 'data-ygpa': id })]));
     });
     bar.addEventListener('keydown', function (e) {
-      var i = ALL.indexOf(state.year), j = i;
-      if (e.key === 'ArrowRight') j = (i + 1) % ALL.length; else if (e.key === 'ArrowLeft') j = (i - 1 + ALL.length) % ALL.length;
-      else if (e.key === 'Home') j = 0; else if (e.key === 'End') j = ALL.length - 1; else return;
-      e.preventDefault(); selectYear(ALL[j], true);
+      var i = HON.indexOf(curYear()), j = i;
+      if (e.key === 'ArrowRight') j = (i + 1) % HON.length; else if (e.key === 'ArrowLeft') j = (i - 1 + HON.length) % HON.length;
+      else if (e.key === 'Home') j = 0; else if (e.key === 'End') j = HON.length - 1; else return;
+      e.preventDefault(); selectYear(HON[j], true);
     });
     return bar;
   }
@@ -308,7 +327,8 @@
 
   function renderYear(yid) {
     var y = C.yearFor(D, state.session, yid), s = yst(yid), era = C.eraForSession(D, state.session);
-    var card = el('div', { class: 'card year', id: 'yearPanel', role: 'tabpanel', 'aria-labelledby': 'yt-' + yid });
+    var card = yid === 'ms' ? el('div', { class: 'card year', id: 'yearPanel', 'aria-label': t('levelMs') })
+      : el('div', { class: 'card year', id: 'yearPanel', role: 'tabpanel', 'aria-labelledby': 'yt-' + yid });
     var yn = el('div', { class: 'n num', id: 'yVal' });
     card.appendChild(el('div', { class: 'yh' }, [
       el('div', null, [
@@ -422,10 +442,12 @@
       countUp(v, c.cgpa); v.classList.toggle('dim', c.cgpa === null);
       var L = document.getElementById('cgLetter'); L.textContent = c.letter || '–'; L.hidden = !c.letter;
       var used = HON.filter(function (id) { var r = yearResult(id); return r.gpa !== null && r.credits > 0; }).length;
-      document.getElementById('cgSub').textContent = c.cgpa === null ? t('cgpaEmpty') : t('fromYears', { n: n(used), c: n(c.credits) });
+      var sub = lv() === 'ms' ? (c.cgpa === null ? t('msEmpty') : t('msSub', { c: n(c.credits) }))
+        : (c.cgpa === null ? t('cgpaEmpty') : t('fromYears', { n: n(used), c: n(c.credits) }));
+      document.getElementById('cgSub').textContent = sub;
     }
-    ALL.forEach(function (id) { var s = document.querySelector('[data-ygpa="' + id + '"]'); if (s) { var r = yearResult(id); s.textContent = r.gpa === null ? '·' : f2(r.gpa); } });
-    var yid = state.year, r = yearResult(yid), y = C.yearFor(D, state.session, yid);
+    HON.forEach(function (id) { var s = document.querySelector('[data-ygpa="' + id + '"]'); if (s) { var r = yearResult(id); s.textContent = r.gpa === null ? '·' : f2(r.gpa); } });
+    var yid = curYear(), r = yearResult(yid), y = C.yearFor(D, state.session, yid);
     var yv = document.getElementById('yVal');
     if (yv) {
       countUp(yv, r.gpa);
@@ -512,7 +534,7 @@
 
   function resultRows() {
     var rows = [];
-    ALL.forEach(function (id) {
+    C.LEVELS[lv()].forEach(function (id) {
       var y = C.yearFor(D, state.session, id), r = yearResult(id);
       if (!y && r.gpa === null && !yst(id).manual.on) return;
       rows.push({ id: id, label: t(id), gpa: r.gpa, letter: r.letter, credits: r.credits, total: r.manual ? r.credits : r.totalCredits, published: !!y });
@@ -528,8 +550,8 @@
     host.innerHTML = '';
     var c = cgpa();
     host.appendChild(el('h1', { text: t('printTitle') }));
-    host.appendChild(el('p', { text: t('sessionChip', { s: sessLabel(state.session) }) + ' · ' + todayLabel() }));
-    host.appendChild(el('p', { class: 'print-cg', text: t('yourCgpa') + ' ' + (c.cgpa === null ? '–' : c.cgpa.toFixed(2)) + (c.letter ? ' · ' + c.letter : '') }));
+    host.appendChild(el('p', { text: t('sessionChip', { s: sessLabel(state.session) }) + ' · ' + t(lv() === 'ms' ? 'levelMs' : 'levelHons') + ' · ' + todayLabel() }));
+    host.appendChild(el('p', { class: 'print-cg', text: t(lv() === 'ms' ? 'yourMsCgpa' : 'yourCgpa') + ' ' + (c.cgpa === null ? '–' : c.cgpa.toFixed(2)) + (c.letter ? ' · ' + c.letter : '') }));
     var table = el('table', null, [el('thead', null, [el('tr', null, [el('th', { text: t('gpaByYear') }), el('th', { text: t('gpa') }), el('th', { text: t('credits') }), el('th', { text: t('scaleLetter') })])])]);
     var tb = el('tbody');
     resultRows().forEach(function (row) {
@@ -579,6 +601,7 @@
       if (parsed.state.lang) state.lang = parsed.state.lang;
       if (parsed.state.session && C.eraForSession(D, parsed.state.session)) state.session = parsed.state.session;
       if (parsed.state.year) state.year = parsed.state.year;
+      state.level = parsed.state.level;
       state.data = clampAllSel(parsed.state.data);
       save(); applyLang(); render(); toast(t('imported'));
     };
@@ -589,7 +612,7 @@
     if (!confirm(t('clearAllQ'))) return;
     try { localStorage.removeItem(KEY); localStorage.removeItem('nuStatsCgpa.theme'); } catch (e) {}
     delete document.documentElement.dataset.theme;
-    state = { lang: state.lang, session: null, year: 'y1', data: {} };
+    state = { lang: state.lang, session: null, year: 'y1', level: 'hons', data: {} };
     plan.target = ''; plan.remaining = '';
     applyThemeChrome(); applyLang(); render(); toast(t('clearedAll'));
   }
@@ -624,10 +647,10 @@
     ctx.fillText(t('brandSub'), pad + 64, pad + 48);
     ctx.font = '600 16px ' + font;
     ctx.fillStyle = '#55636c';
-    ctx.fillText(t('sessionChip', { s: sessLabel(state.session) }) + '  ·  ' + todayLabel(), pad, pad + 92);
+    ctx.fillText(t('sessionChip', { s: sessLabel(state.session) }) + '  ·  ' + t(lv() === 'ms' ? 'levelMs' : 'levelHons') + '  ·  ' + todayLabel(), pad, pad + 92);
     ctx.fillStyle = '#55636c';
     ctx.font = '600 14px ' + font;
-    ctx.fillText(t('yourCgpa'), pad, pad + 140);
+    ctx.fillText(t(lv() === 'ms' ? 'yourMsCgpa' : 'yourCgpa'), pad, pad + 140);
     ctx.fillStyle = '#16212a';
     ctx.font = '600 86px ' + font;
     ctx.fillText(c.cgpa === null ? '–' : c.cgpa.toFixed(2), pad, pad + 230);
@@ -669,7 +692,7 @@
     ctx.fillText(t('madeBy'), pad, h - pad + 4);
     canvas.toBlob(function (blob) {
       if (!blob) return;
-      downloadBlob(blob, 'stats-cgpa-' + (state.session || 'result') + '-' + fileStamp() + '.png');
+      downloadBlob(blob, 'stats-cgpa-' + (lv() === 'ms' ? 'masters-' : '') + (state.session || 'result') + '-' + fileStamp() + '.png');
       toast(t('exportPng'));
     }, 'image/png');
   }

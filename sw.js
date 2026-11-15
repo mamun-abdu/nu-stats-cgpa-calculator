@@ -2,7 +2,7 @@
    so it works on GitHub Pages at /nu-stats-cgpa-calculator/ and on a local server. */
 /* Bump CACHE on every deploy that changes the asset list. Pages, scripts and styles are
    fetched network-first, so a normal deploy reaches users on the next online load. */
-var CACHE = 'nu-stats-cgpa-v3';
+var CACHE = 'nu-stats-cgpa-v4';
 var ASSETS = [
   './',
   './index.html',

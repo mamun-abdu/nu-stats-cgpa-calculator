@@ -108,6 +108,23 @@
 
   // ---------- Sessions & syllabus eras ----------
   var YEAR_IDS = ['y1', 'y2', 'y3', 'y4', 'ms'];
+  // Honours and Masters are separate programmes; nothing crosses between them.
+  var LEVELS = { hons: ['y1', 'y2', 'y3', 'y4'], ms: ['ms'] };
+  function levelOf(yearId) { return yearId === 'ms' ? 'ms' : 'hons'; }
+
+  /** CGPA for one programme from { y1: { gpa, credits }, ..., ms: {...} }. Other programme's years are ignored. */
+  function levelCgpa(yearResults, level) {
+    var ids = LEVELS[level] || [];
+    yearResults = yearResults || {};
+    return computeCGPA(ids.map(function (id) { return yearResults[id] || null; }));
+  }
+
+  /** Graded letters for one programme from { y1: ['A', ...], ms: [...] }. */
+  function levelLetters(lettersByYear, level) {
+    var out = [];
+    (LEVELS[level] || []).forEach(function (id) { (lettersByYear && lettersByYear[id] || []).forEach(function (g) { out.push(g); }); });
+    return out;
+  }
 
   /** 'old' (2013-14 syllabus) or 'new' (2024-25 syllabus) for a session id like '2023-2024'. */
   function eraForSession(data, sessionId) {
@@ -228,6 +245,7 @@
       lang: state && (state.lang === 'bn' || state.lang === 'en') ? state.lang : 'en',
       session: state && state.session ? state.session : null,
       year: state && state.year ? state.year : 'y1',
+      level: state && state.level === 'ms' ? 'ms' : 'hons',
       data: state && state.data ? state.data : {}
     };
   }
@@ -281,10 +299,11 @@
       try { obj = JSON.parse(s); } catch (e) { return { ok: false, error: 'invalid-json', state: null }; }
     }
     if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return { ok: false, error: 'invalid-shape', state: null };
-    var lang = obj.lang, session = obj.session, year = obj.year, data = obj.data;
+    var lang = obj.lang, session = obj.session, year = obj.year, data = obj.data, level = obj.level;
     if (lang != null && lang !== 'en' && lang !== 'bn') return { ok: false, error: 'invalid-lang', state: null };
     if (session != null && typeof session !== 'string') return { ok: false, error: 'invalid-session', state: null };
     if (year != null && year !== '' && YEAR_IDS.indexOf(year) < 0) return { ok: false, error: 'invalid-year', state: null };
+    if (level != null && level !== 'hons' && level !== 'ms') return { ok: false, error: 'invalid-level', state: null };
     if (data == null) return { ok: false, error: 'invalid-shape', state: null };
     if (typeof data !== 'object' || Array.isArray(data)) return { ok: false, error: 'invalid-shape', state: null };
     return {
@@ -293,7 +312,9 @@
       state: {
         lang: lang === 'bn' || lang === 'en' ? lang : null,
         session: session || null,
-        year: year && YEAR_IDS.indexOf(year) >= 0 ? year : null,
+        // Older saves kept Masters as a 5th year tab; move it to its own section.
+        year: year === 'ms' ? 'y1' : (year && YEAR_IDS.indexOf(year) >= 0 ? year : null),
+        level: level === 'ms' || year === 'ms' ? 'ms' : 'hons',
         data: sanitizeSavedData(data)
       }
     };
@@ -301,6 +322,10 @@
 
   var api = {
     YEAR_IDS: YEAR_IDS,
+    LEVELS: LEVELS,
+    levelOf: levelOf,
+    levelCgpa: levelCgpa,
+    levelLetters: levelLetters,
     eraForSession: eraForSession,
     yearFor: yearFor,
     officialYearTotals: officialYearTotals,

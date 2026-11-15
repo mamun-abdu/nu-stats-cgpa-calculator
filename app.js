@@ -528,11 +528,13 @@
     var hint = document.getElementById('planHint');
     var remainInput = document.getElementById('planRemain');
     if (earnedEl) earnedEl.textContent = t('earnedLbl') + ': ' + (c.cgpa === null ? '–' : (f2(c.cgpa) + ' · ' + n(remInfo.earned) + ' ' + t('credits')));
-    if (remainInput && !plan.remaining) remainInput.placeholder = remInfo.remaining ? n(remInfo.remaining) : n('40');
+    if (remainInput && !plan.remaining) remainInput.placeholder = remInfo.unknown ? '' : (remInfo.remaining ? n(remInfo.remaining) : n('40'));
     if (hint) hint.textContent = remInfo.unknown ? t('remainingUnknown') : (remInfo.remaining ? t('remainingHint', { n: n(remInfo.remaining) }) : '');
     var target = C.parseNum(plan.target);
     var remain = plan.remaining.trim() === '' ? remInfo.remaining : C.parseNum(plan.remaining);
     if (plan.target.trim() === '') { out.textContent = ''; return; }
+    // Later years are unpublished, so the auto total would undercount: ask for the real remaining credits.
+    if (remInfo.unknown && plan.remaining.trim() === '') { out.textContent = t('remainingUnknown'); return; }
     if (c.cgpa === null && remInfo.earned === 0) { out.textContent = t('targetNeedCurrent'); return; }
     var current = c.cgpa === null ? 0 : c.cgpa;
     var earned = remInfo.earned;

@@ -1,4 +1,4 @@
-/* UI strings (English / Bangla). {x} placeholders are filled by t(). */
+/* English and Bangla text. {x} gets filled in by t(). */
 (function (root) {
   var STR = {
     en: {

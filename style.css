@@ -1,4 +1,4 @@
-/* NU Statistics CGPA — calm, simple, mobile-first */
+/* Mobile first. Colours live in the variables below. */
 :root {
   --bg: #f5f7f8;
   --surface: #ffffff;
@@ -75,7 +75,7 @@ main { padding: 8px 18px 40px; }
 .fade-in { animation: fade .35s var(--ease) both; }
 @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
-/* Onboarding / session picker */
+/* Session picker */
 .hello { max-width: 640px; margin: 28px auto 0; text-align: center; }
 .hello h1 { font-size: clamp(1.45rem, 5vw, 1.9rem); line-height: 1.2; margin: 0 0 10px; letter-spacing: -.02em; }
 .hello p { color: var(--muted); margin: 0 auto 26px; max-width: 460px; }

@@ -1,4 +1,4 @@
-/* NU Statistics CGPA — UI (plain JS, no framework) */
+/* The UI. Plain JS, no framework. */
 (function () {
   'use strict';
   var D = window.NU_DATA, C = window.NUCalc, STR = window.NU_STR;
@@ -8,7 +8,7 @@
   var DARKTXT = {};
   var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // ---------- state ----------
+  // state
   var state = load();
   function load() {
     var s = { lang: (navigator.language || '').indexOf('bn') === 0 ? 'bn' : 'en', session: null, year: 'y1', level: 'hons', data: {} };
@@ -36,7 +36,7 @@
     if (!Array.isArray(y.sel)) y.sel = defaultSel(C.yearFor(D, state.session, yid));
     return y;
   }
-  // Keep at most `pick` choices per optional group (imported or hand-edited data could tick all three).
+  // only allow `pick` optionals per group, even if a backup file says otherwise
   function clampAllSel(data) {
     Object.keys(data).forEach(function (sid) {
       if (!C.eraForSession(D, sid)) return;
@@ -65,7 +65,7 @@
     return sel;
   }
 
-  // ---------- helpers ----------
+  // helpers
   function t(k, v) {
     var s = (STR[state.lang] && STR[state.lang][k]) || STR.en[k] || k;
     if (v) Object.keys(v).forEach(function (x) { s = s.split('{' + x + '}').join(v[x]); });
@@ -106,7 +106,7 @@
     })(t0);
   }
 
-  // ---------- calculations ----------
+  // maths
   function isCounted(yid, c) { return !c.nonCredit && (!c.pick || yst(yid).sel.indexOf(c.code) >= 0); }
   function entries(yid) {
     var y = C.yearFor(D, state.session, yid), s = yst(yid), out = [];
@@ -125,7 +125,7 @@
     }
     return r;
   }
-  // Which programme is on screen: Honours (y1-y4) or Masters. They never mix.
+  // which degree is on screen; Honours and Masters never mix
   function lv() { return state.level === 'ms' ? 'ms' : 'hons'; }
   function curYear() { return lv() === 'ms' ? 'ms' : (HON.indexOf(state.year) >= 0 ? state.year : 'y1'); }
   function cgpa() {
@@ -144,7 +144,7 @@
     return C.levelLetters(byYear, lv());
   }
 
-  // ---------- chrome (header, footer, lang) ----------
+  // header, footer, language
   function applyLang() {
     document.documentElement.lang = state.lang;
     document.querySelectorAll('[data-i18n]').forEach(function (e) { e.textContent = t(e.dataset.i18n); });
@@ -168,7 +168,7 @@
     });
   }
 
-  // ---------- session picker ----------
+  // session picker
   function sessionGrid(onPick) {
     var wrap = el('div', { class: 'sess-wrap' });
     C.sessionGroups(D).forEach(function (g) {
@@ -199,7 +199,7 @@
     var cur = body.querySelector('[aria-pressed="true"]'); if (cur) cur.focus();
   }
 
-  // ---------- render ----------
+  // main render
   var main = document.getElementById('main');
   function render() {
     main.innerHTML = '';
@@ -229,7 +229,7 @@
     return wrap;
   }
 
-  // Hero: CGPA, plus the year chart for Honours
+  // CGPA card (Honours also gets the year chart)
   function renderHero() {
     var big = el('div', { class: 'big num', id: 'cgVal', 'aria-live': 'polite' });
     return el('div', { class: 'card hero' }, [
@@ -263,7 +263,6 @@
     host.innerHTML = ''; host.appendChild(svg);
   }
 
-  // Grade mix donut
   function renderMix() {
     return el('div', { class: 'card mix' }, [el('h3', { text: t('gradeMix') }), el('div', { class: 'mix-body', id: 'mixBody' })]);
   }
@@ -289,7 +288,6 @@
     host.innerHTML = ''; host.appendChild(svg); host.appendChild(lg);
   }
 
-  // Year tabs
   function renderYearTabs() {
     var bar = el('div', { class: 'years', role: 'tablist', 'aria-label': t('gpa') });
     HON.forEach(function (id) {
@@ -340,7 +338,7 @@
     card.appendChild(el('div', { class: 'meter', 'aria-hidden': 'true' }, [el('span', { id: 'yBar' })]));
     card.appendChild(el('div', { class: 'facts', id: 'yFacts' }));
 
-    // manual GPA toggle
+    // "I already know my GPA"
     var cb = el('input', { type: 'checkbox', checked: s.manual.on, id: 'man-' + yid });
     card.appendChild(el('label', { class: 'switch', for: 'man-' + yid }, [cb, el('span', { class: 'tr', 'aria-hidden': 'true' }), el('span', { text: t('manualToggle') })]));
     var mg = el('input', { id: 'mg-' + yid, type: 'text', inputmode: 'decimal', autocomplete: 'off', value: s.manual.gpa, placeholder: n('3.50') });
@@ -433,7 +431,6 @@
     ])]);
   }
 
-  // live updates
   function refresh() {
     if (!state.session) return;
     var c = cgpa();
@@ -471,7 +468,7 @@
     drawBars(); drawMix(); updatePlanner(); updatePrintSheet();
   }
 
-  // ---------- actions, planner, export ----------
+  // planner, export, backup
   var plan = { target: '', remaining: '' };
 
   function yearResultsMap() {
@@ -509,7 +506,7 @@
     var target = C.parseNum(plan.target);
     var remain = plan.remaining.trim() === '' ? remInfo.remaining : C.parseNum(plan.remaining);
     if (plan.target.trim() === '') { out.textContent = ''; return; }
-    // Later years are unpublished, so the auto total would undercount: ask for the real remaining credits.
+    // 3rd/4th year aren't published for new sessions, so ask instead of guessing
     if (remInfo.unknown && plan.remaining.trim() === '') { out.textContent = t('remainingUnknown'); return; }
     if (c.cgpa === null && remInfo.earned === 0) { out.textContent = t('targetNeedCurrent'); return; }
     var current = c.cgpa === null ? 0 : c.cgpa;
@@ -734,7 +731,7 @@
   }
 
 
-  // ---------- header controls ----------
+  // header buttons
   document.getElementById('langBtn').addEventListener('click', function () { state.lang = state.lang === 'en' ? 'bn' : 'en'; save(); applyLang(); render(); });
   document.getElementById('sessionBtn').addEventListener('click', openSessionDialog);
   document.getElementById('themeBtn').addEventListener('click', function () {
@@ -753,7 +750,7 @@
   if (window.matchMedia) {
     var mq = window.matchMedia('(prefers-color-scheme: dark)');
     var onScheme = function () { try { if (!localStorage.getItem('nuStatsCgpa.theme')) applyThemeChrome(); } catch (e) { applyThemeChrome(); } };
-    // Safari < 14 only has addListener; calling addEventListener there threw before the first render.
+    // old Safari only has addListener
     if (mq.addEventListener) mq.addEventListener('change', onScheme); else if (mq.addListener) mq.addListener(onScheme);
   }
 

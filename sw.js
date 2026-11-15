@@ -1,7 +1,5 @@
-/* Offline cache for Stats CGPA. Scope is the folder this file lives in,
-   so it works on GitHub Pages at /nu-stats-cgpa-calculator/ and on a local server. */
-/* Bump CACHE on every deploy that changes the asset list. Pages, scripts and styles are
-   fetched network-first, so a normal deploy reaches users on the next online load. */
+/* Offline support. Paths are relative so it works under /nu-stats-cgpa-calculator/ too.
+   I bump CACHE whenever the file list changes. */
 var CACHE = 'nu-stats-cgpa-v4';
 var ASSETS = [
   './',
@@ -56,7 +54,7 @@ self.addEventListener('fetch', function (event) {
   if (url.origin !== self.location.origin) return;
 
   if (isAppShell(req, url)) {
-    // Network first (revalidated with the server, cheap 304s) so new deploys show up; cache when offline.
+    // network first so updates show up straight away, cache only when offline
     event.respondWith(
       fetch(req, { cache: 'no-cache' }).then(function (res) { return putInCache(req, res); }).catch(function () {
         return caches.match(req, { ignoreSearch: req.mode === 'navigate' }).then(function (hit) {
@@ -69,7 +67,7 @@ self.addEventListener('fetch', function (event) {
     return;
   }
 
-  // Icons, fonts, images: cache first.
+  // icons and images rarely change, so cache first
   event.respondWith(
     caches.match(req).then(function (hit) {
       return hit || fetch(req).then(function (res) { return putInCache(req, res); }).catch(function () {

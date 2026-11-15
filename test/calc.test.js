@@ -1,4 +1,4 @@
-// Run: node test/calc.test.js
+// node test/calc.test.js
 const assert = require('assert');
 const C = require('../calc.js');
 const D = require('../data.js');

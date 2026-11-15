@@ -1,5 +1,4 @@
-/* Pure calculation logic for the NU Statistics CGPA calculator.
- * Works in the browser (window.NUCalc) and in Node (module.exports). */
+/* All the GPA/CGPA maths. No DOM here, so the tests can load it in Node too. */
 (function (root) {
   'use strict';
 
@@ -18,7 +17,7 @@
 
   var BN = '০১২৩৪৫৬৭৮৯';
 
-  /** Convert Bangla digits (and Bangla/Arabic decimal marks) to ASCII. */
+  // Bangla digits -> ASCII (people type ৩.৫০ a lot)
   function toAscii(str) {
     if (str === null || str === undefined) return '';
     return String(str)
@@ -27,12 +26,12 @@
       .trim();
   }
 
-  /** Convert ASCII digits to Bangla digits. */
+  // and back again
   function toBangla(str) {
     return String(str).replace(/[0-9]/g, function (d) { return BN[+d]; });
   }
 
-  /** Parse a user-typed number (Bangla or English digits). Returns NaN if invalid/empty. */
+  // NaN when empty or not a number
   function parseNum(str) {
     var s = toAscii(str);
     if (s === '' || !/^\d*\.?\d+$|^\d+\.$/.test(s)) return NaN;
@@ -48,14 +47,12 @@
     return null;
   }
 
-  /** Map a percentage (0-100) to an NU grade. */
   function gradeFromPercent(pct) {
     if (typeof pct !== 'number' || !(pct >= 0) || pct > 100) return null;
     for (var i = 0; i < GRADES.length; i++) if (pct >= GRADES[i].min) return GRADES[i];
     return GRADES[GRADES.length - 1];
   }
 
-  /** Letter grade for a GPA/CGPA value on the NU 4.00 scale. */
   function letterFromGPA(gpa) {
     if (typeof gpa !== 'number' || !(gpa >= 0)) return null;
     var g = round2(gpa);
@@ -65,10 +62,7 @@
     return 'F';
   }
 
-  /**
-   * Compute a year's GPA.
-   * entries: [{ credits, letter, counted }]; only counted entries with a letter are used.
-   */
+  // entries: [{ credits, letter, counted }]. Ungraded or unticked ones are skipped.
   function computeGPA(entries) {
     var credits = 0, weighted = 0, fails = 0, graded = 0, countedCredits = 0;
     entries.forEach(function (e) {
@@ -93,7 +87,6 @@
     };
   }
 
-  /** CGPA from [{ gpa, credits }] weighted by credits. */
   function computeCGPA(years) {
     var credits = 0, weighted = 0;
     years.forEach(function (y) {
@@ -106,40 +99,36 @@
     return { cgpa: cgpa, letter: cgpa === null ? null : letterFromGPA(cgpa), credits: credits };
   }
 
-  // ---------- Sessions & syllabus eras ----------
   var YEAR_IDS = ['y1', 'y2', 'y3', 'y4', 'ms'];
-  // Honours and Masters are separate programmes; nothing crosses between them.
+  // Honours and Masters are two different degrees, so they never share a CGPA.
   var LEVELS = { hons: ['y1', 'y2', 'y3', 'y4'], ms: ['ms'] };
   function levelOf(yearId) { return yearId === 'ms' ? 'ms' : 'hons'; }
 
-  /** CGPA for one programme from { y1: { gpa, credits }, ..., ms: {...} }. Other programme's years are ignored. */
   function levelCgpa(yearResults, level) {
     var ids = LEVELS[level] || [];
     yearResults = yearResults || {};
     return computeCGPA(ids.map(function (id) { return yearResults[id] || null; }));
   }
 
-  /** Graded letters for one programme from { y1: ['A', ...], ms: [...] }. */
   function levelLetters(lettersByYear, level) {
     var out = [];
     (LEVELS[level] || []).forEach(function (id) { (lettersByYear && lettersByYear[id] || []).forEach(function (g) { out.push(g); }); });
     return out;
   }
 
-  /** 'old' (2013-14 syllabus) or 'new' (2024-25 syllabus) for a session id like '2023-2024'. */
+  // 'old' = 2013-14 syllabus, 'new' = 2024-25 syllabus
   function eraForSession(data, sessionId) {
     for (var i = 0; i < data.sessions.length; i++) if (data.sessions[i].id === sessionId) return data.sessions[i].era;
     return null;
   }
 
-  /** Year syllabus object for a session, or null when that year's syllabus is not published. */
+  // null when NU hasn't published that year yet
   function yearFor(data, sessionId, yearId) {
     var era = eraForSession(data, sessionId);
     if (!era) return null;
     return data.eras[era].years[yearId] || null;
   }
 
-  /** Count graded letters into { 'A+': n, ... } in scale order. */
   function gradeDistribution(letters) {
     var out = {};
     GRADES.forEach(function (g) { out[g.letter] = 0; });
@@ -147,7 +136,7 @@
     return out;
   }
 
-  /** Prescribed year marks/credits, excluding non-credit papers and unchosen optionals. */
+  // Official marks/credits for a year. Non-credit English and the unpicked optionals don't count.
   function officialYearTotals(year) {
     if (!year || !Array.isArray(year.courses)) return null;
     var creditMarks = 0, hasMarks = false, nonCredit = [];
@@ -178,7 +167,6 @@
     return !!yearFor(data, sessionId, yearId);
   }
 
-  /** Sessions grouped by era, in the order they appear in data.sessions. */
   function sessionGroups(data) {
     var groups = [], by = {};
     (data.sessions || []).forEach(function (s) {
@@ -188,10 +176,7 @@
     return groups;
   }
 
-  /**
-   * GPA needed in remaining credits to reach a target CGPA.
-   * required is rounded to 2 decimals. alreadyMet means a remaining GPA of 0 would still meet the target.
-   */
+  // GPA needed in the remaining credits to hit a target CGPA.
   function requiredGpa(currentCgpa, earnedCredits, remainingCredits, targetCgpa) {
     function fail(err) { return { ok: false, required: null, possible: false, alreadyMet: false, error: err }; }
     var args = [currentCgpa, earnedCredits, remainingCredits, targetCgpa];
@@ -212,11 +197,7 @@
     return { ok: true, required: reqR, possible: true, alreadyMet: false, error: null };
   }
 
-  /**
-   * Earned and remaining honours credits (y1–y4, not Masters).
-   * yearResults: { y1: { gpa, credits, totalCredits, manual }, ... }
-   * unknown is true when a year has no published syllabus, so remaining credits cannot be inferred.
-   */
+  // Honours credits done vs left. unknown = some year isn't published, so I can't count it.
   function remainingHonours(data, sessionId, yearResults) {
     var earned = 0, remaining = 0, unknown = false;
     var ids = ['y1', 'y2', 'y3', 'y4'];
@@ -290,7 +271,8 @@
     return out;
   }
 
-  /** Accept a saved-state object, an export payload, or a JSON string. Drops leftover marks and custom-course fields from older versions. */
+  // Used for both localStorage and backup files, so treat everything as untrusted.
+  // Old saves can have marks or custom courses; those just get dropped.
   function parseImport(input) {
     var obj = input;
     if (typeof input === 'string') {
@@ -312,7 +294,7 @@
       state: {
         lang: lang === 'bn' || lang === 'en' ? lang : null,
         session: session || null,
-        // Older saves kept Masters as a 5th year tab; move it to its own section.
+        // Masters used to be a 5th tab
         year: year === 'ms' ? 'y1' : (year && YEAR_IDS.indexOf(year) >= 0 ? year : null),
         level: level === 'ms' || year === 'ms' ? 'ms' : 'hons',
         data: sanitizeSavedData(data)

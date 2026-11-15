@@ -1,13 +1,10 @@
 /*
- * Course data for National University (Bangladesh) B.Sc. (Honours) Statistics
- * and the one-year Master's course, taken from NU's official syllabus files
- * published at https://www.nu.ac.bd/syllabus-honours.php and
- * https://www.nu.ac.bd/syllabus-masters.php (each year's file is in `source`).
+ * Every course here is copied from NU's official syllabus files
+ * (nu.ac.bd/syllabus-honours.php and nu.ac.bd/syllabus-masters.php).
+ * Each year's exact file is in `source`.
  *
- * Eras:
- *   old - syllabus effective from session 2013-14 (used by sessions 2013-14 .. 2023-24)
- *   new - syllabus effective from session 2024-25 (sessions 2024-25 onward).
- *         3rd year, 4th year and Master's are not published yet, so they are null.
+ * old = 2013-14 syllabus, used by 2013-14 to 2023-24 (my batch is the last one)
+ * new = 2024-25 syllabus. Only 1st and 2nd year are out so far, the rest are null.
  */
 (function (root) {
   var NU_DATA = {

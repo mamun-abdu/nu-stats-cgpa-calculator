@@ -267,11 +267,13 @@ th { font-size: .75rem; color: var(--muted); font-weight: 600; }
 @media print {
   .bar, .years, .tools, .switch, .toast, .skip, .actions, .planner, .ctl, .ghost-btn, .round-btn, .chip-btn, #themeBtn, #langBtn, #sessionBtn, .scale-body, details.card, .mix { display: none !important; }
   .print-sheet { display: block !important; margin: 0 0 24px; }
+  .print-sheet table { width: 100%; border-collapse: collapse; }
+  .print-sheet th, .print-sheet td { text-align: left; padding: 6px 4px; border-bottom: 1px solid #ccc; }
   .print-sheet h1 { margin: 0 0 6px; font-size: 1.6rem; }
   .print-cg { font-size: 1.4rem; font-weight: 600; }
   .print-disc { color: #444; font-size: .85rem; }
   body { background: #fff; color: #111; }
   .card { box-shadow: none; break-inside: avoid; }
-  .dash, .side { display: block !important; position: static !important; }
+  .dash, .hello, #disclaimer { display: none !important; }
   a[href]::after { content: none !important; }
 }

@@ -19,7 +19,7 @@
         if (parsed.state.lang) s.lang = parsed.state.lang;
         if (parsed.state.session && C.eraForSession(D, parsed.state.session)) s.session = parsed.state.session;
         if (parsed.state.year) s.year = parsed.state.year;
-        s.data = parsed.state.data;
+        s.data = clampAllSel(parsed.state.data);
       }
     } catch (e) {}
     return s;
@@ -35,6 +35,28 @@
     if (!y.c) y.c = {}; if (!Array.isArray(y.custom)) y.custom = []; if (!y.manual) y.manual = { on: false, gpa: '', credits: '' };
     if (!Array.isArray(y.sel)) y.sel = defaultSel(C.yearFor(D, state.session, yid));
     return y;
+  }
+  // Keep at most `pick` choices per optional group (imported or hand-edited data could tick all three).
+  function clampAllSel(data) {
+    Object.keys(data).forEach(function (sid) {
+      if (!C.eraForSession(D, sid)) return;
+      Object.keys(data[sid] || {}).forEach(function (yid) {
+        var ys = data[sid][yid];
+        if (ys && Array.isArray(ys.sel)) ys.sel = clampSel(C.yearFor(D, sid, yid), ys.sel);
+      });
+    });
+    return data;
+  }
+  function clampSel(y, sel) {
+    if (!y) return sel;
+    var count = {}, byCode = {}, out = [];
+    y.courses.forEach(function (c) { if (c.pick) byCode[c.code] = c; });
+    sel.forEach(function (code) {
+      var c = byCode[code]; if (!c || out.indexOf(code) >= 0) return;
+      count[c.section] = (count[c.section] || 0) + 1;
+      if (count[c.section] <= c.pick) out.push(code);
+    });
+    return out;
   }
   function defaultSel(y) {
     var sel = [], seen = {};
@@ -600,7 +622,7 @@
       if (parsed.state.lang) state.lang = parsed.state.lang;
       if (parsed.state.session && C.eraForSession(D, parsed.state.session)) state.session = parsed.state.session;
       if (parsed.state.year) state.year = parsed.state.year;
-      state.data = parsed.state.data;
+      state.data = clampAllSel(parsed.state.data);
       save(); applyLang(); render(); toast(t('imported'));
     };
     reader.readAsText(file);

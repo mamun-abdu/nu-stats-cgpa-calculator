@@ -232,10 +232,15 @@
     };
   }
 
+  var BAD_KEYS = ['__proto__', 'constructor', 'prototype'];
+  function safeKey(k) { return BAD_KEYS.indexOf(k) < 0; }
+  function validLetter(g) { return g === '' || !!gradeByLetter(g); }
+
   function sanitizeSavedData(data) {
     var out = {};
     if (!data || typeof data !== 'object' || Array.isArray(data)) return out;
     Object.keys(data).forEach(function (sid) {
+      if (!safeKey(sid)) return;
       var years = data[sid];
       if (!years || typeof years !== 'object') return;
       out[sid] = {};
@@ -247,9 +252,10 @@
         var c = {};
         if (y.c && typeof y.c === 'object') {
           Object.keys(y.c).forEach(function (code) {
+            if (!safeKey(code)) return;
             var e = y.c[code];
-            if (e && typeof e === 'object' && typeof e.g === 'string') c[code] = { g: e.g };
-            else if (typeof e === 'string') c[code] = { g: e };
+            var g = e && typeof e === 'object' ? e.g : e;
+            if (typeof g === 'string' && validLetter(g)) c[code] = { g: g };
           });
         }
         var custom = [];
@@ -259,7 +265,7 @@
             var name = typeof item.name === 'string' ? item.name : '';
             var cr = typeof item.credits === 'number' ? item.credits : parseFloat(item.credits);
             if (!name || !(cr > 0)) return;
-            custom.push({ name: name, credits: cr, g: typeof item.g === 'string' ? item.g : '' });
+            custom.push({ name: name, credits: cr, g: typeof item.g === 'string' && validLetter(item.g) ? item.g : '' });
           });
         }
         var manual = { on: false, gpa: '', credits: '' };

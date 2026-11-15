@@ -217,4 +217,15 @@ t('export payload and import validation, including leftover marks fields', () =>
   assert.strictEqual(C.parseImport({ lang: 'en', year: 'y9', data: {} }).error, 'invalid-year');
 });
 
+t('import drops unknown grades and prototype keys', () => {
+  const r = C.parseImport('{"data":{"__proto__":{"y1":{}},"2023-2024":{"y1":{"c":{"__proto__":{"g":"A+"},"213601":{"g":"Z"},"213603":"B","213604":{"g":"<img src=x>"}}}}}}');
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(Object.getPrototypeOf(r.state.data), Object.prototype);
+  assert.deepStrictEqual(Object.keys(r.state.data), ['2023-2024']);
+  const c = r.state.data['2023-2024'].y1.c;
+  assert.deepStrictEqual(Object.keys(c), ['213603']);
+  assert.strictEqual(Object.getPrototypeOf(c), Object.prototype);
+  assert.strictEqual(({}).g, undefined);
+});
+
 console.log(`\nAll ${n} test groups passed.`);

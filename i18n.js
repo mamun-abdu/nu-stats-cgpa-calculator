@@ -77,6 +77,7 @@
       targetNeedCurrent: 'Add some grades first, then set a target.',
       targetInvalid: 'Enter a target between 0 and 4, and remaining credits above 0.',
       printTitle: 'Result summary',
+      madeBy: 'Made by Mamun · mamun-abdu.github.io/nu-stats-cgpa-calculator',
       actions: 'Save and share'
     },
     bn: {
@@ -155,6 +156,7 @@
       targetNeedCurrent: 'আগে কিছু গ্রেড দিন, তারপর টার্গেট বসান।',
       targetInvalid: '০ থেকে ৪-এর মধ্যে টার্গেট এবং ০-এর বেশি বাকি ক্রেডিট লিখুন।',
       printTitle: 'ফলাফলের সারাংশ',
+      madeBy: 'তৈরি করেছেন Mamun · mamun-abdu.github.io/nu-stats-cgpa-calculator',
       actions: 'সংরক্ষণ ও শেয়ার'
     }
   };

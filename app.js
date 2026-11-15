@@ -154,7 +154,7 @@
     var parts = t('credit').split(/(\{link\}|\{me\}|\{src\})/);
     parts.forEach(function (p) {
       if (p === '{link}') fc.appendChild(el('a', { href: 'https://www.nu.ac.bd/syllabus-honours.php', target: '_blank', rel: 'noopener', text: t('nuSite') }));
-      else if (p === '{me}') fc.appendChild(el('a', { href: 'https://github.com/mamun-abdu', target: '_blank', rel: 'noopener', text: 'Mamun Abdu' }));
+      else if (p === '{me}') fc.appendChild(el('a', { href: 'https://github.com/mamun-abdu', target: '_blank', rel: 'noopener', text: 'Mamun' }));
       else if (p === '{src}') fc.appendChild(el('a', { href: 'https://github.com/mamun-abdu/nu-stats-cgpa-calculator', target: '_blank', rel: 'noopener', text: t('source') }));
       else fc.appendChild(document.createTextNode(p));
     });
@@ -675,6 +675,7 @@
     ctx.fillStyle = '#7a6d63';
     ctx.font = '500 13px ' + font;
     wrapText(ctx, t('disclaimer'), pad, h - pad - 36, w - pad * 2, 20);
+    ctx.fillText(t('madeBy'), pad, h - pad + 4);
     canvas.toBlob(function (blob) {
       if (!blob) return;
       downloadBlob(blob, 'stats-cgpa-' + (state.session || 'result') + '-' + fileStamp() + '.png');

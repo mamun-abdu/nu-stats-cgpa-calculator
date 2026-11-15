@@ -95,4 +95,4 @@ This is an unofficial calculator. Your official result is whatever National Univ
 
 ## License
 
-Code: [MIT](LICENSE) © Mamun Abdu.
+Code: [MIT](LICENSE) © Mamun.

@@ -59,7 +59,7 @@
       exportPng: 'Download result card',
       exportPdf: 'Print / save PDF',
       exportJson: 'Export backup',
-      importJson: 'Import backup',
+      importJson: 'Import backup or CSV',
       imported: 'Backup imported',
       importQ: 'Replace the grades saved on this device with this backup?',
       importErr: 'That file is not a valid Stats CGPA backup.',
@@ -77,7 +77,19 @@
       targetInvalid: 'Enter a target between 0 and 4, and remaining credits above 0.',
       printTitle: 'Result summary',
       madeBy: 'Made by Mamun · mamun-abdu.github.io/nu-stats-cgpa-calculator',
-      actions: 'Save and share'
+      actions: 'Save and share',
+      tipTitle: 'Start here:',
+      tipText: 'pick the grade you got in each course below. Your GPA and CGPA update straight away and stay saved on this device.',
+      keyYear: 'Year GPA', keyRunning: 'CGPA so far',
+      whatIfTitle: 'What if…',
+      whatIfLead: 'Your final Honours CGPA if your remaining {c} credits all average this grade:',
+      dataTools: 'Backup and data',
+      dataToolsLead: 'Your grades are saved only in this browser. Keep a backup file, or open your grades in Excel / Google Sheets as a CSV.',
+      exportCsv: 'Export grades (CSV)',
+      csvQ: 'Fill in {n} grades for the {s} session from this CSV? Grades already on this device for those courses will be replaced.',
+      csvDone: '{n} grades imported',
+      csvSkipped: '{n} rows skipped',
+      csvErr: 'Couldn’t read that CSV. It needs year, code and grade columns for one session.'
     },
     bn: {
       skip: 'মূল অংশে যান',
@@ -137,7 +149,7 @@
       exportPng: 'ফলাফল কার্ড ডাউনলোড',
       exportPdf: 'প্রিন্ট / পিডিএফ',
       exportJson: 'ব্যাকআপ এক্সপোর্ট',
-      importJson: 'ব্যাকআপ ইমপোর্ট',
+      importJson: 'ব্যাকআপ বা CSV ইমপোর্ট',
       imported: 'ব্যাকআপ ইমপোর্ট হয়েছে',
       importQ: 'এই ডিভাইসে সংরক্ষিত গ্রেডের বদলে এই ব্যাকআপ বসাবেন?',
       importErr: 'এটি বৈধ স্ট্যাটস সিজিপিএ ব্যাকআপ নয়।',
@@ -155,7 +167,19 @@
       targetInvalid: '০ থেকে ৪-এর মধ্যে টার্গেট এবং ০-এর বেশি বাকি ক্রেডিট লিখুন।',
       printTitle: 'ফলাফলের সারাংশ',
       madeBy: 'তৈরি করেছেন Mamun · mamun-abdu.github.io/nu-stats-cgpa-calculator',
-      actions: 'সংরক্ষণ ও শেয়ার'
+      actions: 'সংরক্ষণ ও শেয়ার',
+      tipTitle: 'এখান থেকে শুরু করুন:',
+      tipText: 'নিচে প্রতিটি কোর্সে আপনার পাওয়া গ্রেড বেছে নিন। জিপিএ ও সিজিপিএ সঙ্গে সঙ্গে আপডেট হবে এবং এই ডিভাইসেই সংরক্ষিত থাকবে।',
+      keyYear: 'বর্ষের জিপিএ', keyRunning: 'এ পর্যন্ত সিজিপিএ',
+      whatIfTitle: 'যদি…',
+      whatIfLead: 'বাকি {c} ক্রেডিটে গড়ে এই গ্রেড পেলে আপনার চূড়ান্ত অনার্স সিজিপিএ:',
+      dataTools: 'ব্যাকআপ ও ডেটা',
+      dataToolsLead: 'আপনার গ্রেড শুধু এই ব্রাউজারেই সংরক্ষিত থাকে। একটি ব্যাকআপ ফাইল রাখুন, অথবা CSV হিসেবে Excel / Google Sheets-এ খুলুন।',
+      exportCsv: 'গ্রেড এক্সপোর্ট (CSV)',
+      csvQ: 'এই CSV থেকে {s} সেশনের {n}টি গ্রেড বসানো হবে? ওই কোর্সগুলোর আগের গ্রেড বদলে যাবে।',
+      csvDone: '{n}টি গ্রেড ইমপোর্ট হয়েছে',
+      csvSkipped: '{n}টি সারি বাদ পড়েছে',
+      csvErr: 'CSV পড়া গেল না। একটি সেশনের year, code ও grade কলাম থাকতে হবে।'
     }
   };
   if (typeof module === 'object' && module.exports) module.exports = STR;

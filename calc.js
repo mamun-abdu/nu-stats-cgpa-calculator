@@ -231,6 +231,128 @@
     };
   }
 
+
+  // CGPA after each year in order (the line on the year chart).
+  // A year with no GPA yet keeps the previous value; null until the first graded year.
+  function runningCgpa(years) {
+    var credits = 0, weighted = 0;
+    return (years || []).map(function (y) {
+      if (y && typeof y.gpa === 'number' && y.gpa >= 0 && y.gpa <= 4 && typeof y.credits === 'number' && y.credits > 0) {
+        credits += y.credits;
+        weighted += y.gpa * y.credits;
+      }
+      return credits > 0 ? round2(weighted / credits) : null;
+    });
+  }
+
+  // "What if" table: the final CGPA if every remaining credit earned the same grade.
+  // Uses the same grade points as everything else (GRADES above), F left out on purpose.
+  function projectCgpa(currentCgpa, earnedCredits, remainingCredits) {
+    var ok = [currentCgpa, earnedCredits, remainingCredits].every(function (x) { return typeof x === 'number' && isFinite(x); });
+    if (!ok || currentCgpa < 0 || currentCgpa > 4 || earnedCredits < 0 || remainingCredits <= 0) return [];
+    var total = earnedCredits + remainingCredits;
+    return GRADES.filter(function (g) { return g.point > 0; }).map(function (g) {
+      var final = round2((currentCgpa * earnedCredits + g.point * remainingCredits) / total);
+      return { letter: g.letter, point: g.point, cgpa: final, finalLetter: letterFromGPA(final) };
+    });
+  }
+
+  // ---- CSV (grades as a spreadsheet) ----
+  var CSV_COLS = ['session', 'year', 'code', 'course', 'credits', 'counted', 'grade', 'point'];
+
+  function csvCell(v) {
+    var s = v === null || v === undefined ? '' : String(v);
+    // stop spreadsheet apps from treating a cell as a formula
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+    return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+
+  // One row per course of every published year in the session (Honours and Masters),
+  // so the file opens cleanly in Excel / Google Sheets.
+  function gradesCsv(data, sessionId, saved) {
+    var lines = [CSV_COLS.join(',')];
+    var years = (saved && saved[sessionId]) || {};
+    YEAR_IDS.forEach(function (yid) {
+      var y = yearFor(data, sessionId, yid);
+      if (!y) return;
+      var ys = years[yid] || {}, c = ys.c || {}, sel = Array.isArray(ys.sel) ? ys.sel : null;
+      var seen = {};
+      y.courses.forEach(function (course) {
+        var counted;
+        if (course.nonCredit) counted = 'no';
+        else if (!course.pick) counted = 'yes';
+        else if (sel) counted = sel.indexOf(course.code) >= 0 ? 'yes' : 'no';
+        else { seen[course.section] = (seen[course.section] || 0) + 1; counted = seen[course.section] <= course.pick ? 'yes' : 'no'; }
+        var g = (c[course.code] || {}).g || '';
+        var gr = g ? gradeByLetter(g) : null;
+        lines.push([sessionId, yid, course.code, course.name, course.nonCredit ? 0 : course.credits, counted, g, gr ? gr.point.toFixed(2) : ''].map(csvCell).join(','));
+      });
+    });
+    return lines.join('\r\n') + '\r\n';
+  }
+
+  // Small RFC 4180 parser: quotes, doubled quotes, CRLF or LF.
+  function parseCsv(text) {
+    var rows = [], row = [], cell = '', q = false, s = String(text || '').replace(/^\uFEFF/, '');
+    for (var i = 0; i < s.length; i++) {
+      var ch = s[i];
+      if (q) {
+        if (ch === '"') { if (s[i + 1] === '"') { cell += '"'; i++; } else q = false; }
+        else cell += ch;
+      } else if (ch === '"') q = true;
+      else if (ch === ',') { row.push(cell); cell = ''; }
+      else if (ch === '\n' || ch === '\r') {
+        if (ch === '\r' && s[i + 1] === '\n') i++;
+        row.push(cell); cell = '';
+        if (row.length > 1 || row[0] !== '') rows.push(row);
+        row = [];
+      } else cell += ch;
+    }
+    if (cell !== '' || row.length) { row.push(cell); if (row.length > 1 || row[0] !== '') rows.push(row); }
+    return rows;
+  }
+
+  // Reads a grades CSV (the one gradesCsv makes, or one typed by hand with at least
+  // year, code and grade columns). Only course codes from the official syllabus are kept.
+  function importGradesCsv(data, sessionId, text) {
+    function fail(err) { return { ok: false, error: err, session: null, years: null, count: 0, skipped: 0 }; }
+    var rows = parseCsv(text);
+    if (rows.length < 2) return fail('empty');
+    var head = rows[0].map(function (h) { return String(h).trim().toLowerCase(); });
+    var col = {};
+    CSV_COLS.forEach(function (k) { col[k] = head.indexOf(k); });
+    if (col.year < 0 || col.code < 0 || col.grade < 0) return fail('columns');
+    var sid = sessionId;
+    if (col.session >= 0) {
+      var ids = {};
+      rows.slice(1).forEach(function (r) { var v = (r[col.session] || '').trim(); if (v) ids[v] = 1; });
+      var keys = Object.keys(ids);
+      if (keys.length > 1) return fail('many-sessions');
+      if (keys.length === 1) sid = keys[0];
+    }
+    if (!sid || !eraForSession(data, sid)) return fail('session');
+    var years = {}, count = 0, skipped = 0;
+    rows.slice(1).forEach(function (r) {
+      var yid = (r[col.year] || '').trim().toLowerCase();
+      var code = (r[col.code] || '').trim().replace(/^'/, '');
+      var g = (r[col.grade] || '').trim().toUpperCase();
+      var y = YEAR_IDS.indexOf(yid) >= 0 ? yearFor(data, sid, yid) : null;
+      var course = null;
+      if (y) for (var i = 0; i < y.courses.length; i++) if (y.courses[i].code === code) { course = y.courses[i]; break; }
+      if (course && course.nonCredit) return; // listed for completeness, never graded
+      if (!course || (g !== '' && !gradeByLetter(g))) { skipped++; return; }
+      var out = years[yid] || (years[yid] = { c: {}, picked: [], unpicked: [] });
+      if (g) { out.c[code] = { g: g }; count++; }
+      if (course.pick && col.counted >= 0) {
+        var cv = (r[col.counted] || '').trim().toLowerCase();
+        if (cv === 'yes' || cv === 'y' || cv === '1' || cv === 'true') out.picked.push(code);
+        else if (cv === 'no' || cv === 'n' || cv === '0' || cv === 'false') out.unpicked.push(code);
+      }
+    });
+    if (!count) return fail('no-grades');
+    return { ok: true, error: null, session: sid, years: years, count: count, skipped: skipped };
+  }
+
   var BAD_KEYS = ['__proto__', 'constructor', 'prototype'];
   function safeKey(k) { return BAD_KEYS.indexOf(k) < 0; }
   function validLetter(g) { return g === '' || !!gradeByLetter(g); }
@@ -318,6 +440,12 @@
     exportPayload: exportPayload,
     parseImport: parseImport,
     gradeDistribution: gradeDistribution,
+    runningCgpa: runningCgpa,
+    projectCgpa: projectCgpa,
+    gradesCsv: gradesCsv,
+    parseCsv: parseCsv,
+    csvCell: csvCell,
+    importGradesCsv: importGradesCsv,
     GRADES: GRADES,
     toAscii: toAscii,
     toBangla: toBangla,

@@ -272,4 +272,83 @@ t('old saves with Masters as the open tab migrate to the Masters section', () =>
   assert.strictEqual(p.level, 'ms');
 });
 
+// ---- pro-upgrade additions ----
+
+t('running CGPA follows the year results in order', () => {
+  assert.deepStrictEqual(C.runningCgpa([{ gpa: 3.75, credits: 28 }, { gpa: 3.25, credits: 28 }, { gpa: 3.5, credits: 32 }]), [3.75, 3.5, 3.5]);
+  // a year with no GPA keeps the previous value, and nothing before the first graded year
+  assert.deepStrictEqual(C.runningCgpa([null, { gpa: 4, credits: 28 }, { gpa: null, credits: 0 }]), [null, 4, 4]);
+  assert.deepStrictEqual(C.runningCgpa([]), []);
+  // the last value always equals computeCGPA over the same years
+  const ys = [{ gpa: 3.12, credits: 28 }, { gpa: 3.87, credits: 28 }, { gpa: 2.95, credits: 32 }, { gpa: 3.4, credits: 40 }];
+  assert.strictEqual(C.runningCgpa(ys)[3], C.computeCGPA(ys).cgpa);
+});
+
+t('what-if projections use the NU grade points and leave F out', () => {
+  const rows = C.projectCgpa(3.5, 88, 40);
+  assert.deepStrictEqual(rows.map(r => r.letter), ['A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'D']);
+  assert.strictEqual(rows[0].cgpa, C.round2((3.5 * 88 + 4 * 40) / 128));
+  assert.strictEqual(rows[2].cgpa, 3.5); // same grade as now keeps the CGPA
+  assert.strictEqual(rows[0].finalLetter, C.letterFromGPA(rows[0].cgpa));
+  // agrees with the planner: averaging the GPA it asks for reaches the target
+  const need = C.requiredGpa(3.2, 56, 72, 3.5).required;
+  assert.ok(C.round2((3.2 * 56 + need * 72) / 128) >= 3.5 - 0.005);
+  assert.deepStrictEqual(C.projectCgpa(3.5, 88, 0), []);
+  assert.deepStrictEqual(C.projectCgpa(5, 88, 40), []);
+  assert.deepStrictEqual(C.projectCgpa(NaN, 88, 40), []);
+});
+
+t('CSV export has one row per syllabus course with the right points', () => {
+  const saved = { '2023-2024': { y1: { c: { '213601': { g: 'A' }, '213603': { g: 'F' } } }, y4: { c: {}, sel: ['243611', '243615'] } } };
+  const lines = C.gradesCsv(D, '2023-2024', saved).trim().split('\r\n');
+  assert.strictEqual(lines[0], 'session,year,code,course,credits,counted,grade,point');
+  const y1 = C.yearFor(D, '2023-2024', 'y1');
+  assert.strictEqual(lines.filter(l => l.startsWith('2023-2024,y1,')).length, y1.courses.length);
+  assert.ok(lines.includes('2023-2024,y1,213601,Introductory Statistics,4,yes,A,3.75'));
+  assert.ok(lines.some(l => l.startsWith('2023-2024,y1,213603,') && l.endsWith(',F,0.00')));
+  // non-credit English is listed with 0 credits and never counted
+  assert.ok(lines.some(l => l.startsWith('2023-2024,y2,221109,') && l.includes(',0,no,')));
+  // saved optional picks are respected
+  assert.ok(lines.some(l => l.startsWith('2023-2024,y4,243615,') && l.includes(',yes,')));
+  assert.ok(lines.some(l => l.startsWith('2023-2024,y4,243613,') && l.includes(',no,')));
+  // new-syllabus sessions only list the published years
+  const csvNew = C.gradesCsv(D, '2024-2025', {});
+  assert.ok(!/,y3,/.test(csvNew) && /,y1,/.test(csvNew));
+});
+
+t('CSV parsing handles quotes and BOM, cells that look like formulas are neutralised', () => {
+  const rows = C.parseCsv('a,b\r\n"x, y","he said ""hi"""\n');
+  assert.deepStrictEqual(rows, [['a', 'b'], ['x, y', 'he said "hi"']]);
+  assert.deepStrictEqual(C.parseCsv('\uFEFFyear,code,grade\ny1,213601,A'), [['year', 'code', 'grade'], ['y1', '213601', 'A']]);
+  assert.strictEqual(C.csvCell('=HYPERLINK("x")'), '"\'=HYPERLINK(""x"")"');
+  assert.strictEqual(C.csvCell('Lab 1: Descriptive Statistics'), 'Lab 1: Descriptive Statistics');
+  assert.strictEqual(C.csvCell('a,b'), '"a,b"');
+});
+
+t('CSV round trip restores the same grades', () => {
+  const saved = { '2023-2024': { y1: { c: { '213601': { g: 'A+' }, '213604': { g: 'B-' } } }, ms: { c: { '313601': { g: 'A' } } } } };
+  const r = C.importGradesCsv(D, null, C.gradesCsv(D, '2023-2024', saved));
+  assert.ok(r.ok);
+  assert.strictEqual(r.session, '2023-2024');
+  assert.strictEqual(r.count, 3);
+  assert.strictEqual(r.skipped, 0);
+  assert.deepStrictEqual(r.years.y1.c, { '213601': { g: 'A+' }, '213604': { g: 'B-' } });
+  assert.deepStrictEqual(r.years.ms.c, { '313601': { g: 'A' } });
+});
+
+t('hand-typed CSV: unknown codes and grades are skipped, bad files are refused', () => {
+  const r = C.importGradesCsv(D, '2023-2024', 'Year,Code,Grade\ny1,213601,a+\ny1,999999,A\ny1,213603,Z\ny9,213601,A\n');
+  assert.ok(r.ok);
+  assert.deepStrictEqual(r.years.y1.c, { '213601': { g: 'A+' } });
+  assert.strictEqual(r.skipped, 3);
+  assert.strictEqual(C.importGradesCsv(D, '2023-2024', 'code,grade\n213601,A').error, 'columns');
+  assert.strictEqual(C.importGradesCsv(D, '2023-2024', '').error, 'empty');
+  assert.strictEqual(C.importGradesCsv(D, null, 'year,code,grade\ny1,213601,A').error, 'session');
+  assert.strictEqual(C.importGradesCsv(D, '2023-2024', 'session,year,code,grade\n2023-2024,y1,213601,A\n2022-2023,y1,213601,B').error, 'many-sessions');
+  assert.strictEqual(C.importGradesCsv(D, '2023-2024', 'year,code,grade\ny1,213601,\n').error, 'no-grades');
+  // __proto__ as a code is just an unknown code
+  const p = C.importGradesCsv(D, '2023-2024', 'year,code,grade\ny1,__proto__,A\ny1,213601,A');
+  assert.ok(p.ok && p.skipped === 1 && !Object.prototype.hasOwnProperty.call(p.years.y1.c, '__proto__'));
+});
+
 console.log(`\nAll ${n} test groups passed.`);

@@ -212,7 +212,8 @@
     var dash = el('div', { class: 'dash fade-in' });
     var hons = lv() === 'hons';
     var side = el('aside', { class: 'side' }, [renderHero(), renderMix(), hons ? renderPlanner() : null]);
-    var right = el('section', { 'aria-label': t('gpa') }, [hons ? renderYearTabs() : null, renderYear(curYear()), renderActions(), renderScale()]);
+    var tip = el('p', { class: 'tip', id: 'firstTip' }, [el('b', { text: t('tipTitle') }), ' ', t('tipText')]);
+    var right = el('section', { 'aria-label': t('gpa') }, [tip, hons ? renderYearTabs() : null, renderYear(curYear()), renderActions(), renderScale()]);
     dash.appendChild(side); dash.appendChild(right);
     main.appendChild(renderLevelSwitch());
     main.appendChild(dash);
@@ -238,12 +239,15 @@
         el('span', { class: 'badge', id: 'cgLetter' })
       ]),
       el('p', { class: 'sub', id: 'cgSub' }),
-      lv() === 'hons' ? el('div', { class: 'chart' }, [el('h3', { text: t('gpaByYear') }), el('div', { id: 'bars' })]) : null
+      lv() === 'hons' ? el('div', { class: 'chart' }, [
+        el('h3', { text: t('gpaByYear') }), el('div', { id: 'bars' }),
+        el('p', { class: 'chart-key', id: 'chartKey', 'aria-hidden': 'true' }, [el('i', { class: 'k-bar' }), t('keyYear'), el('i', { class: 'k-line' }), t('keyRunning')])
+      ]) : null
     ]);
   }
   function drawBars() {
     var host = document.getElementById('bars'); if (!host) return;
-    var W = 300, H = 140, pad = 22, base = H - 22, top = 18;
+    var W = 300, H = 156, pad = 22, base = H - 38, top = 18;
     var svg = sv('svg', { viewBox: '0 0 ' + W + ' ' + H, width: '100%', class: 'bars', role: 'img' });
     var labels = [], ids = HON;
     var bw = Math.min(38, (W - pad * 2) / ids.length - 14), step = (W - pad * 2) / ids.length;
@@ -256,10 +260,22 @@
         svg.appendChild(sv('rect', { x: x, y: base - h, width: bw, height: h, rx: 8, class: 'b' }));
         var v = sv('text', { x: x + bw / 2, y: base - h - 5, 'text-anchor': 'middle', class: 'v' }); v.textContent = f2(r.gpa); svg.appendChild(v);
       }
-      var lt = sv('text', { x: x + bw / 2, y: H - 6, 'text-anchor': 'middle' }); lt.textContent = t(id + 's'); svg.appendChild(lt);
+      var lt = sv('text', { x: x + bw / 2, y: base + 16, 'text-anchor': 'middle' }); lt.textContent = t(id + 's'); svg.appendChild(lt);
       labels.push(t(id) + ': ' + (r.gpa === null ? '–' : r.gpa.toFixed(2)));
     });
-    svg.setAttribute('aria-label', t('gpaByYear') + '. ' + labels.join(', '));
+    // running CGPA under each year label, so it never collides with the bar values
+    var run = C.runningCgpa(ids.map(function (id) { var r = yearResult(id); return { gpa: r.gpa, credits: r.credits }; }));
+    var pts = [];
+    ids.forEach(function (id, i) {
+      if (yearResult(id).gpa === null || run[i] === null) return;
+      var rt = sv('text', { x: pad + step * i + step / 2, y: H - 4, 'text-anchor': 'middle', class: 'run-v' }); rt.textContent = f2(run[i]);
+      pts.push({ v: run[i], node: rt });
+    });
+    // with one graded year it would just repeat the bar, so only show it from two years on
+    if (pts.length > 1) pts.forEach(function (p) { svg.appendChild(p.node); });
+    var key = document.getElementById('chartKey'); if (key) key.hidden = pts.length < 2;
+    var runTxt = pts.length > 1 ? ' ' + t('keyRunning') + ': ' + pts.map(function (p) { return p.v.toFixed(2); }).join(' → ') : '';
+    svg.setAttribute('aria-label', t('gpaByYear') + '. ' + labels.join(', ') + '.' + runTxt);
     host.innerHTML = ''; host.appendChild(svg);
   }
 
@@ -465,6 +481,8 @@
       if (!r.manual && r.graded) f.appendChild(el('span', { class: r.fails ? 'bad' : 'good', text: r.fails ? t('fails', { n: n(r.fails) }) : t('noFails') }));
       var mn = document.getElementById('mNote'); if (mn) { mn.textContent = r.needCredits ? t('manualNeedCredits') : t('manualNote'); }
     }
+    var tipEl = document.getElementById('firstTip');
+    if (tipEl) tipEl.hidden = allLetters().length > 0 || C.LEVELS[lv()].some(function (id) { return yst(id).manual.on; });
     drawBars(); drawMix(); updatePlanner(); updatePrintSheet();
   }
 
@@ -487,7 +505,12 @@
         el('div', { class: 'field' }, [el('label', { for: 'planTarget', text: t('targetLbl') }), el('input', { id: 'planTarget', type: 'text', inputmode: 'decimal', autocomplete: 'off', value: plan.target, placeholder: n('3.75') })]),
         el('div', { class: 'field' }, [el('label', { for: 'planRemain', text: t('remainingLbl') }), el('input', { id: 'planRemain', type: 'text', inputmode: 'decimal', autocomplete: 'off', value: plan.remaining })])
       ]),
-      el('p', { class: 'plan-out', id: 'planOut', 'aria-live': 'polite' })
+      el('p', { class: 'plan-out', id: 'planOut', 'aria-live': 'polite' }),
+      el('details', { class: 'whatif', id: 'whatIf' }, [
+        el('summary', { text: t('whatIfTitle') }),
+        el('p', { class: 'sub', id: 'whatIfLead' }),
+        el('ul', { class: 'whatif-list', id: 'whatIfList' })
+      ])
     ]);
     card.querySelector('#planTarget').addEventListener('input', function (e) { plan.target = e.target.value; updatePlanner(); });
     card.querySelector('#planRemain').addEventListener('input', function (e) { plan.remaining = e.target.value; updatePlanner(); });
@@ -505,6 +528,7 @@
     if (hint) hint.textContent = remInfo.unknown ? t('remainingUnknown') : (remInfo.remaining ? t('remainingHint', { n: n(remInfo.remaining) }) : '');
     var target = C.parseNum(plan.target);
     var remain = plan.remaining.trim() === '' ? remInfo.remaining : C.parseNum(plan.remaining);
+    drawWhatIf(c, remInfo, remain);
     if (plan.target.trim() === '') { out.textContent = ''; return; }
     // 3rd/4th year aren't published for new sessions, so ask instead of guessing
     if (remInfo.unknown && plan.remaining.trim() === '') { out.textContent = t('remainingUnknown'); return; }
@@ -519,14 +543,44 @@
     out.textContent = t('targetNeed', { g: f2(r.required), c: n(remain) });
   }
 
+  // "what if the rest of my courses average X?"
+  function drawWhatIf(c, remInfo, remain) {
+    var list = document.getElementById('whatIfList'), lead = document.getElementById('whatIfLead');
+    if (!list || !lead) return;
+    list.innerHTML = '';
+    var noRemain = remInfo.unknown && plan.remaining.trim() === '';
+    var rows = c.cgpa === null || noRemain ? [] : C.projectCgpa(c.cgpa, remInfo.earned, remain);
+    if (!rows.length) { lead.textContent = c.cgpa === null ? t('targetNeedCurrent') : (noRemain ? t('remainingUnknown') : t('targetNoRemain')); return; }
+    lead.textContent = t('whatIfLead', { c: n(remain) });
+    rows.forEach(function (r) {
+      list.appendChild(el('li', null, [
+        el('span', { class: 'badge', style: 'background:' + GCOL[r.letter] + ';color:#fff;height:24px;font-size:.8rem', text: r.letter }),
+        el('span', { class: 'wi-arrow', 'aria-hidden': 'true', text: '→' }),
+        el('b', { class: 'num', text: f2(r.cgpa) }),
+        el('span', { class: 'wi-l', text: r.finalLetter })
+      ]));
+    });
+  }
+
   function renderActions() {
-    return el('div', { class: 'actions', 'aria-label': t('actions') }, [
+    var wrap = el('div', { class: 'actions-wrap' });
+    wrap.appendChild(el('div', { class: 'actions', role: 'group', 'aria-label': t('actions') }, [
       el('button', { type: 'button', class: 'ghost-btn', text: t('exportPng'), onclick: exportPng }),
-      el('button', { type: 'button', class: 'ghost-btn', text: t('exportPdf'), onclick: function () { window.print(); } }),
-      el('button', { type: 'button', class: 'ghost-btn', text: t('exportJson'), onclick: exportJson }),
-      el('button', { type: 'button', class: 'ghost-btn', text: t('importJson'), onclick: function () { document.getElementById('importFile').click(); } }),
-      el('button', { type: 'button', class: 'ghost-btn danger', text: t('clearAll'), onclick: clearAllData })
-    ]);
+      el('button', { type: 'button', class: 'ghost-btn', text: t('exportPdf'), onclick: function () { window.print(); } })
+    ]));
+    wrap.appendChild(el('details', { class: 'card data-tools' }, [
+      el('summary', { text: t('dataTools') }),
+      el('div', { class: 'data-body' }, [
+        el('p', { class: 'sub', text: t('dataToolsLead') }),
+        el('div', { class: 'actions' }, [
+          el('button', { type: 'button', class: 'ghost-btn', text: t('exportJson'), onclick: exportJson }),
+          el('button', { type: 'button', class: 'ghost-btn', text: t('exportCsv'), onclick: exportCsv }),
+          el('button', { type: 'button', class: 'ghost-btn', text: t('importJson'), onclick: function () { document.getElementById('importFile').click(); } }),
+          el('button', { type: 'button', class: 'ghost-btn danger', text: t('clearAll'), onclick: clearAllData })
+        ])
+      ])
+    ]));
+    return wrap;
   }
 
   function resultRows() {
@@ -549,14 +603,17 @@
     host.appendChild(el('h1', { text: t('printTitle') }));
     host.appendChild(el('p', { text: t('sessionChip', { s: sessLabel(state.session) }) + ' · ' + t(lv() === 'ms' ? 'levelMs' : 'levelHons') + ' · ' + todayLabel() }));
     host.appendChild(el('p', { class: 'print-cg', text: t(lv() === 'ms' ? 'yourMsCgpa' : 'yourCgpa') + ' ' + (c.cgpa === null ? '–' : c.cgpa.toFixed(2)) + (c.letter ? ' · ' + c.letter : '') }));
-    var table = el('table', null, [el('thead', null, [el('tr', null, [el('th', { text: t('gpaByYear') }), el('th', { text: t('gpa') }), el('th', { text: t('credits') }), el('th', { text: t('scaleLetter') })])])]);
+    var table = el('table', null, [el('thead', null, [el('tr', null, [el('th', { text: t('gpaByYear') }), el('th', { text: t('gpa') }), el('th', { text: t('credits') }), el('th', { text: t('scaleLetter') })].concat(lv() === 'hons' ? [el('th', { text: t('keyRunning') })] : []))])]);
     var tb = el('tbody');
-    resultRows().forEach(function (row) {
+    var rowsP = resultRows();
+    var runP = C.runningCgpa(rowsP.map(function (row) { return { gpa: row.gpa, credits: row.credits }; }));
+    rowsP.forEach(function (row, i) {
       tb.appendChild(el('tr', null, [
         el('td', { text: row.label + (row.published ? '' : ' · ' + t('notPubTitle')) }),
         el('td', { class: 'num', text: row.gpa === null ? '–' : row.gpa.toFixed(2) }),
         el('td', { class: 'num', text: row.credits ? String(row.credits) : '–' }),
-        el('td', { text: row.letter || '–' })
+        el('td', { text: row.letter || '–' }),
+        lv() === 'hons' ? el('td', { class: 'num', text: row.gpa === null || runP[i] === null ? '–' : runP[i].toFixed(2) }) : null
       ]));
     });
     table.appendChild(tb);
@@ -589,10 +646,31 @@
     downloadBlob(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }), 'stats-cgpa-' + (state.session || 'backup') + '-' + fileStamp() + '.json');
     toast(t('exportJson'));
   }
+  function exportCsv() {
+    var csv = C.gradesCsv(D, state.session, state.data);
+    // BOM so Excel opens it as UTF-8
+    downloadBlob(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' }), 'stats-cgpa-grades-' + (state.session || 'grades') + '-' + fileStamp() + '.csv');
+    toast(t('exportCsv'));
+  }
+  function importCsvText(text) {
+    var r = C.importGradesCsv(D, state.session, text);
+    if (!r.ok) { toast(t('csvErr')); return; }
+    if (!confirm(t('csvQ', { n: n(r.count), s: sessLabel(r.session) }))) return;
+    state.session = r.session;
+    Object.keys(r.years).forEach(function (yid) {
+      var src = r.years[yid], y = yst(yid);
+      Object.keys(src.c).forEach(function (code) { y.c[code] = src.c[code]; });
+      if (src.picked.length) y.sel = clampSel(C.yearFor(D, state.session, yid), src.picked);
+    });
+    save(); applyLang(); render();
+    toast(t('csvDone', { n: n(r.count) }) + (r.skipped ? ' · ' + t('csvSkipped', { n: n(r.skipped) }) : ''));
+  }
   function importFromFile(file) {
     var reader = new FileReader();
     reader.onload = function () {
-      var parsed = C.parseImport(String(reader.result || ''));
+      var text = String(reader.result || '');
+      if (/\.csv$/i.test(file.name || '') || !/^\s*\{/.test(text.replace(/^\uFEFF/, ''))) { importCsvText(text); return; }
+      var parsed = C.parseImport(text);
       if (!parsed.ok) { toast(t('importErr')); return; }
       if (Object.keys(state.data || {}).length && !confirm(t('importQ'))) return;
       if (parsed.state.lang) state.lang = parsed.state.lang;

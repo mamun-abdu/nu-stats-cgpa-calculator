@@ -1,6 +1,6 @@
 /* Offline support. Paths are relative so it works under /nu-stats-cgpa-calculator/ too.
    I bump CACHE whenever the file list changes. */
-var CACHE = 'nu-stats-cgpa-v4';
+var CACHE = 'nu-stats-cgpa-v5';
 var ASSETS = [
   './',
   './index.html',

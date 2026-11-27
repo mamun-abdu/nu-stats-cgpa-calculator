@@ -142,7 +142,7 @@ dialog[open] { animation: pop .25s var(--ease); }
 .years { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 4px; background: var(--soft); border-radius: 12px; }
 .years::-webkit-scrollbar { display: none; }
 .yt { flex: 1 0 auto; border: 0; background: transparent; border-radius: 12px; padding: 8px 12px; cursor: pointer; font-weight: 600; font-size: .92rem; color: var(--muted); display: flex; flex-direction: column; align-items: center; line-height: 1.2; min-height: 48px; justify-content: center; transition: background .2s, color .2s; }
-.yt small { font-weight: 400; font-size: .72rem; opacity: .9; }
+.yt small { font-weight: 400; font-size: .72rem; }
 .yt[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
 .yt .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--sun); display: inline-block; margin-left: 4px; vertical-align: middle; }
 
@@ -262,10 +262,37 @@ th { font-size: .75rem; color: var(--muted); font-weight: 600; }
   .bar-actions { gap: 4px; }
 }
 
+/* First-use tip: disappears once the first grade is in */
+.tip { margin: 0 0 12px; padding: 12px 14px; border-radius: 12px; background: var(--accent-soft); color: var(--ink); font-size: .9rem; border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent); }
+.tip b { color: var(--accent); }
+.tip[hidden] { display: none; }
+
+/* Running CGPA under the year chart */
+.bars text.run-v { fill: var(--sun); font-weight: 600; font-size: 10.5px; }
+.chart-key { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 6px 0 0; font-size: .74rem; color: var(--muted); }
+.chart-key[hidden] { display: none; }
+.chart-key i { display: inline-block; width: 12px; height: 10px; border-radius: 3px; background: var(--accent); }
+.chart-key i.k-line { width: 10px; height: 10px; border-radius: 50%; background: var(--sun); margin-left: 8px; }
+
+/* What-if inside the planner */
+.whatif { margin-top: 12px; border-top: 1px solid var(--line); }
+.whatif summary { padding: 12px 0 4px; font-size: .88rem; }
+.whatif .sub { margin-top: 2px; }
+.whatif-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.whatif-list li { display: grid; grid-template-columns: 3em 1.2em auto 1fr; align-items: center; gap: 6px; font-size: .9rem; }
+.whatif-list .wi-arrow, .whatif-list .wi-l { color: var(--muted); font-size: .8rem; }
+
+/* Backup and data, tucked away */
+.actions-wrap .data-tools { margin-top: 12px; }
+.data-tools summary { font-size: .92rem; }
+.data-body { padding: 0 20px 18px; }
+.data-body .sub { margin: 0; }
+.data-body .actions { margin-top: 12px; }
+
 .print-sheet { display: none; }
 
 @media print {
-  .bar, .levels, .years, .switch, .toast, .skip, .actions, .planner, .ctl, .ghost-btn, .round-btn, .chip-btn, #themeBtn, #langBtn, #sessionBtn, .scale-body, details.card, .mix { display: none !important; }
+  .bar, .levels, .years, .switch, .toast, .skip, .actions, .actions-wrap, .tip, .planner, .ctl, .ghost-btn, .round-btn, .chip-btn, #themeBtn, #langBtn, #sessionBtn, .scale-body, details.card, .mix { display: none !important; }
   .print-sheet { display: block !important; margin: 0 0 24px; }
   .print-sheet table { width: 100%; border-collapse: collapse; }
   .print-sheet th, .print-sheet td { text-align: left; padding: 6px 4px; border-bottom: 1px solid #ccc; }

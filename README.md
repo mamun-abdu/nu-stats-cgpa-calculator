@@ -30,12 +30,30 @@ A few NU details I made sure to get right:
 
 ## What else it does
 
-- Target CGPA planner for Honours: tells you the GPA you need in your remaining credits
-- Download a result card as a PNG, or print / save a PDF
-- Export and import a backup file
-- Light and dark mode, and a full Bangla interface
-- Works offline and can be installed like an app
-- Everything is saved in your own browser (localStorage). Nothing is sent anywhere. There's a button to clear it all.
+The main screen stays simple: pick grades, see your CGPA. Everything else is one tap away.
+
+- **CGPA so far.** The year chart shows each year's GPA, plus your running CGPA under it, so you can see if you're trending up or down.
+- **Target planner.** Type the CGPA you want and it tells you the GPA you need over your remaining credits.
+- **What if…** Open it under the planner to see your final Honours CGPA if the rest of your courses average A+, A, A-, and so on.
+- **Result card and PDF.** Download a PNG result card, or print / save a one-page summary.
+- **Backup and data** (tucked away under the course list):
+  - Export and import a backup file (JSON).
+  - Export your grades as a CSV to open in Excel or Google Sheets, and import that CSV back.
+  - Clear everything.
+- Light and dark mode, and a full Bangla interface.
+- Works offline and can be installed like an app.
+- Everything is saved in your own browser (localStorage). Nothing is sent anywhere.
+
+### The grades CSV
+
+The export has one row per course:
+
+```csv
+session,year,code,course,credits,counted,grade,point
+2023-2024,y1,213601,Introductory Statistics,4,yes,A,3.75
+```
+
+`year` is `y1` to `y4`, or `ms` for Masters. `counted` says whether an optional paper is one of the ones you took. When you import, only `year`, `code` and `grade` are required, so you can type one by hand too. Course codes that aren't in the official syllabus and grades that aren't on the NU scale get skipped, and you're told how many.
 
 ## How the numbers are worked out
 
@@ -72,8 +90,8 @@ It's plain HTML, CSS and JavaScript, no framework and no build step.
 ```bash
 git clone https://github.com/mamun-abdu/nu-stats-cgpa-calculator.git
 cd nu-stats-cgpa-calculator
-python3 -m http.server 8000
-node test/calc.test.js
+python3 -m http.server 8000   # then open http://localhost:8000
+npm test                      # or: node test/calc.test.js
 ```
 
 | File | What's in it |
@@ -85,7 +103,8 @@ node test/calc.test.js
 | `i18n.js` | English and Bangla text |
 | `app.js` | the interface, saving and export |
 | `manifest.webmanifest`, `sw.js`, `icons/` | install and offline bits |
-| `test/calc.test.js` | tests |
+| `test/calc.test.js` | tests for all the maths, the planner, backups and CSV |
+| `.github/workflows/test.yml` | runs the tests on every push and pull request |
 
 ## Disclaimer
 
